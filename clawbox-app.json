@@ -1,0 +1,23 @@
+{
+  "name": "clawbox-mistakes",
+  "version": "0.2.0",
+  "description": "错题本云应用 — 记录错题、追踪薄弱知识点、间隔重复复习",
+  "type": "cloud",
+  "api_base_url": "https://mistakes.teachclaw.app",
+  "auth": {
+    "type": "oauth2",
+    "scopes": ["mistakes:read", "mistakes:write"]
+  },
+  "ui": {
+    "url": "https://mistakes.teachclaw.app",
+    "healthCheck": "/healthz"
+  },
+  "tools": [
+    { "name": "add", "method": "POST", "path": "/api/mistake" },
+    { "name": "list", "method": "GET", "path": "/api/mistake" },
+    { "name": "get", "method": "GET", "path": "/api/mistake/:id" },
+    { "name": "review", "method": "POST", "path": "/api/mistake/:id/review" },
+    { "name": "due", "method": "GET", "path": "/api/review/due" },
+    { "name": "stats", "method": "GET", "path": "/api/stats" }
+  ]
+}
