@@ -1,23 +1,40 @@
 {
-  "name": "clawbox-mistakes",
-  "version": "0.2.0",
-  "description": "错题本云应用 — 记录错题、追踪薄弱知识点、间隔重复复习",
+  "name": "pawclass",
+  "version": "0.1.0",
+  "description": "教学云应用 — 错题管理 + 个性化教学大纲 + 互动课堂",
   "type": "cloud",
-  "api_base_url": "https://mistakes.teachclaw.app",
-  "auth": {
-    "type": "oauth2",
-    "scopes": ["mistakes:read", "mistakes:write"]
+  "cli": {
+    "bin": "pawclass",
+    "commands": ["serve", "migrate", "session", "help"]
   },
+  "skill": "SKILL.md",
   "ui": {
-    "url": "https://mistakes.teachclaw.app",
+    "port": 9801,
+    "protocol": "http",
+    "displayMode": "panel",
     "healthCheck": "/healthz"
   },
+  "events": {
+    "callbackUrl": "/api/app-events",
+    "types": ["step_complete", "quiz_result", "help_request", "student_skip", "student_exit", "session_end"]
+  },
   "tools": [
-    { "name": "add", "method": "POST", "path": "/api/mistake" },
-    { "name": "list", "method": "GET", "path": "/api/mistake" },
-    { "name": "get", "method": "GET", "path": "/api/mistake/:id" },
-    { "name": "review", "method": "POST", "path": "/api/mistake/:id/review" },
-    { "name": "due", "method": "GET", "path": "/api/review/due" },
-    { "name": "stats", "method": "GET", "path": "/api/stats" }
-  ]
+    { "name": "mistake.add", "method": "POST", "path": "/api/mistake" },
+    { "name": "mistake.list", "method": "GET", "path": "/api/mistake" },
+    { "name": "mistake.get", "method": "GET", "path": "/api/mistake/:id" },
+    { "name": "mistake.master", "method": "POST", "path": "/api/mistake/:id/master" },
+    { "name": "mistake.review", "method": "POST", "path": "/api/mistake/:id/review" },
+    { "name": "review.due", "method": "GET", "path": "/api/review/due" },
+    { "name": "stats", "method": "GET", "path": "/api/stats" },
+    { "name": "teaching.outline", "method": "POST", "path": "/api/teaching/outline" },
+    { "name": "session.create", "method": "POST", "path": "/api/session" },
+    { "name": "session.get", "method": "GET", "path": "/api/session/:id" },
+    { "name": "session.results", "method": "GET", "path": "/api/session/:id/results" }
+  ],
+  "env": {
+    "PAWCLASS_PORT": { "default": "9801", "description": "HTTP 端口" },
+    "DATABASE_URL": { "description": "PostgreSQL 连接字符串" },
+    "PAWCLASS_AI_API_KEY": { "description": "AI API Key" },
+    "CLAWBOX_BACKEND_URL": { "default": "http://localhost:4000", "description": "ClawBox Backend 地址" }
+  }
 }

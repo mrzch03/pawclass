@@ -1,11 +1,20 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { stream } from "hono/streaming";
+import { existsSync, readFileSync } from "node:fs";
 import { createApiRoutes } from "./routes/api.js";
+import { createTeachingRoutes } from "./routes/teaching.js";
+import { createSessionRouter } from "./stage/session-router.js";
+import { sessionStore } from "./stage/session-store.js";
+import { ServerPlaybackEngine } from "./stage/playback/server-engine.js";
+import { createEventEmitter } from "./stage/events/event-emitter.js";
+import { getAudioPath } from "./stage/tts/tts-generator.js";
 import type { DB } from "./db/connection.js";
 import { createMistakeRepo } from "./repo/mistake-repo.js";
 import { createReviewRepo } from "./repo/review-repo.js";
 import { authMiddleware } from "./auth/middleware.js";
 import type { AuthVariables } from "./auth/types.js";
+import type { QuizResult } from "./stage/types.js";
 
 export function createServer(db: DB): Hono {
   const app = new Hono();
@@ -13,21 +22,123 @@ export function createServer(db: DB): Hono {
   app.use("/*", cors());
 
   // Health check (public, no auth)
-  app.get("/healthz", (c) => c.json({ status: "ok" }));
+  app.get("/healthz", (c) => c.json({ status: "ok", app: "pawclass" }));
 
-  // API routes (protected by auth middleware)
+  // Repos
   const mistakeRepo = createMistakeRepo(db);
   const reviewRepo = createReviewRepo(db);
 
+  // --- Authenticated API routes ---
   const apiApp = new Hono<{ Variables: AuthVariables }>();
   apiApp.use("/*", authMiddleware);
+
+  // Mistakes CRUD + review
   apiApp.route("/", createApiRoutes({ mistakeRepo, reviewRepo }));
+
+  // Teaching outline generation
+  apiApp.route("/teaching", createTeachingRoutes({ mistakeRepo }));
+
   app.route("/api", apiApp);
 
-  // Web UI routes
-  // TODO: Wire up Logto OIDC login flow for browser auth.
-  // For now, these serve the static HTML pages without auth.
-  // In production, these should redirect to Logto login if no session cookie is present.
+  // --- Stage session routes (public, accessed by CLI with session IDs) ---
+  const eventEmitter = process.env.CLAWBOX_BACKEND_URL
+    ? createEventEmitter({
+        backendUrl: process.env.CLAWBOX_BACKEND_URL,
+        appSecret: process.env.APP_SECRET || "pawclass-secret",
+        agentImUserId: process.env.AGENT_IM_USER_ID || "",
+        targetUserId: process.env.TARGET_USER_ID,
+        targetGroupId: process.env.TARGET_GROUP_ID,
+      })
+    : null;
+
+  const engine = new ServerPlaybackEngine(eventEmitter);
+
+  const sessionRouter = createSessionRouter({
+    onSessionCreated: (sessionId) => {
+      console.log(`[pawclass] Session ${sessionId} created, generating content...`);
+      // Content generation will be triggered here when the generation pipeline is ready
+    },
+    onPlay: (sessionId) => engine.play(sessionId),
+    onPause: (sessionId) => engine.pause(sessionId),
+    onResume: (sessionId) => engine.resume(sessionId),
+    onGoto: (sessionId, stepIndex) => engine.gotoStep(sessionId, stepIndex),
+    onStop: (sessionId) => {
+      engine.stop(sessionId);
+      eventEmitter?.emit({ type: "session_end", sessionId, summary: "教学结束" });
+    },
+  });
+
+  app.route("/api/session", sessionRouter);
+
+  // SSE streaming
+  app.get("/api/session/:id/stream", (c) => {
+    const sessionId = c.req.param("id");
+    const session = sessionStore.get(sessionId);
+    if (!session) return c.json({ error: "session not found" }, 404);
+
+    return stream(c, async (s) => {
+      c.header("Content-Type", "text/event-stream");
+      c.header("Cache-Control", "no-cache");
+      c.header("Connection", "keep-alive");
+
+      const unsubscribe = engine.subscribe(sessionId, (event) => {
+        try { s.write(`data: ${JSON.stringify(event)}\n\n`); } catch {}
+      });
+
+      s.write(`data: ${JSON.stringify({
+        type: "init",
+        status: session.status,
+        currentStepIndex: session.currentStepIndex,
+        totalSteps: session.scenes.length,
+      })}\n\n`);
+
+      s.onAbort(() => unsubscribe());
+      await new Promise(() => {});
+    });
+  });
+
+  // Frontend report endpoints
+  app.post("/api/session/:id/step-complete", async (c) => {
+    const body = await c.req.json<{ stepIndex: number }>();
+    await engine.onStepComplete(c.req.param("id"), body.stepIndex);
+    return c.json({ ok: true });
+  });
+  app.post("/api/session/:id/quiz-submit", async (c) => {
+    const body = await c.req.json<{ stepIndex: number; result: QuizResult }>();
+    await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
+    return c.json({ ok: true });
+  });
+  app.post("/api/session/:id/help-request", async (c) => {
+    const body = await c.req.json<{ stepIndex: number }>();
+    await engine.onHelpRequest(c.req.param("id"), body.stepIndex);
+    return c.json({ ok: true });
+  });
+  app.post("/api/session/:id/student-exit", async (c) => {
+    await engine.onStudentExit(c.req.param("id"));
+    return c.json({ ok: true });
+  });
+
+  // Audio serving
+  app.get("/api/session/:id/audio/:actionId", (c) => {
+    const { id, actionId } = c.req.param();
+    const audioPath = getAudioPath(id, actionId);
+    if (!existsSync(audioPath)) return c.json({ error: "audio not found" }, 404);
+    return new Response(readFileSync(audioPath), {
+      headers: { "Content-Type": "audio/mpeg", "Cache-Control": "public, max-age=86400" },
+    });
+  });
+
+  // Stage frontend page
+  app.get("/session/:id", (c) => {
+    return c.html(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PawClass</title></head>
+<body><div id="root"></div>
+<script>window.__STAGE_SESSION_ID__="${c.req.param("id")}"</script>
+<script type="module" src="/frontend/main.js"></script>
+</body></html>`);
+  });
+
+  // Web UI routes (mistakes management pages)
   app.get("/", (c) => c.html(getIndexHtml()));
   app.get("/dashboard", (c) => c.html(getDashboardHtml()));
   app.get("/review", (c) => c.html(getReviewHtml()));
@@ -36,13 +147,13 @@ export function createServer(db: DB): Hono {
 }
 
 export function startServer(db: DB, port?: number) {
-  const resolvedPort = port ?? parseInt(process.env.MISTAKES_PORT || "9801", 10);
+  const resolvedPort = port ?? parseInt(process.env.PAWCLASS_PORT || "9801", 10);
   const app = createServer(db);
   const server = Bun.serve({
     port: resolvedPort,
     fetch: app.fetch,
   });
-  console.log(`clawbox-mistakes server running on http://localhost:${server.port}`);
+  console.log(`pawclass running on http://localhost:${server.port}`);
   return server;
 }
 
