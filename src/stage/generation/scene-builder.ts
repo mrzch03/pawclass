@@ -1,5 +1,9 @@
 /**
- * Scene builder — adapted from OpenMAIC scene-builder.ts.
+ * Scene builder.
+ *
+ * Adapted from OpenMAIC (https://github.com/openmaic/openmaic)
+ * Original license: AGPL-3.0
+ *
  * Builds complete Scene objects from SceneOutlines.
  * No store dependency — returns Scene objects directly.
  */

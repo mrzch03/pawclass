@@ -1,6 +1,9 @@
 /**
  * Scene content and action generation.
  *
+ * Adapted from OpenMAIC (https://github.com/openmaic/openmaic)
+ * Original license: AGPL-3.0
+ *
  * Generates full scenes (slide/quiz/interactive with actions)
  * from scene outlines using an AI call function.
  *
