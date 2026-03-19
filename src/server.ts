@@ -4,6 +4,8 @@ import { stream } from "hono/streaming";
 import { existsSync, readFileSync } from "node:fs";
 import { createApiRoutes } from "./routes/api.js";
 import { createTeachingRoutes } from "./routes/teaching.js";
+import { createOAuthRoutes } from "./routes/oauth.js";
+import { createCliDistRoutes } from "./routes/cli-dist.js";
 import { createSessionRouter } from "./stage/session-router.js";
 import { sessionStore } from "./stage/session-store.js";
 import { ServerPlaybackEngine } from "./stage/playback/server-engine.js";
@@ -23,6 +25,12 @@ export function createServer(db: DB): Hono {
 
   // Health check (public, no auth)
   app.get("/healthz", (c) => c.json({ status: "ok", app: "pawclass" }));
+
+  // --- Public OAuth2 Provider routes (no auth) ---
+  app.route("/oauth", createOAuthRoutes());
+
+  // --- Public CLI distribution routes (no auth) ---
+  app.route("/cli", createCliDistRoutes());
 
   // Repos
   const mistakeRepo = createMistakeRepo(db);
