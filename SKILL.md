@@ -1,95 +1,100 @@
 ---
 name: pawclass
-description: Teaching platform with mistake tracking and interactive lessons. Use for mistake management, personalized teaching outlines, and interactive classroom sessions with slides, whiteboard, quizzes, and voice narration.
+description: Teaching cloud app — mistake tracking + interactive lessons. Use the pawclass CLI to manage teaching sessions. The server is already running remotely.
 metadata: {"openclaw":{"requires":{"bins":["pawclass"]}}}
 ---
 
 # PawClass — 教学云应用
 
-集成错题管理 + 个性化教学大纲生成 + 互动课堂播放。
+PawClass 是一个**远程云服务**，已经部署好了。你只需要用 `pawclass` CLI 来调用它。
 
-## 错题管理
+**不需要**：启动服务、配置数据库、设置 API key。这些都已经在服务端配好了。
 
-### 添加错题
+## 环境变量
+
+CLI 需要 `PAWCLASS_BASE_URL` 来知道服务地址。如果没设置，先设一下：
 ```bash
-curl -X POST http://localhost:9801/api/mistake \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"subject":"数学","topic":"二次函数","problemText":"求解...","wrongAnswer":"x=3","correctAnswer":"x=2","explanation":"..."}'
-```
-
-### 查看统计
-```bash
-curl http://localhost:9801/api/stats -H "Authorization: Bearer $TOKEN"
-```
-
-### 标记掌握
-```bash
-curl -X POST http://localhost:9801/api/mistake/<id>/master -H "Authorization: Bearer $TOKEN"
+export PAWCLASS_BASE_URL="https://pawclass.teachclaw.app"
 ```
 
 ## 教学流程
 
-### 1. 生成教学大纲（基于错题数据）
+### 1. 创建教学大纲（JSON 格式）
+
+根据学生需求写一个教学大纲 JSON 文件：
 ```bash
-curl -X POST http://localhost:9801/api/teaching/outline \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"request":"学生的原话","depth":"standard"}' > /tmp/outline.json
+cat > /tmp/outline.json << 'EOF'
+{
+  "title": "Python 基础入门",
+  "scenario": "knowledge_first",
+  "scenes": [
+    {
+      "title": "什么是 Python",
+      "actions": [
+        {"type": "narration", "text": "Python 是一门简洁优雅的编程语言..."},
+        {"type": "slide", "content": "# Python 特点\n- 简洁易读\n- 生态丰富\n- 跨平台"}
+      ]
+    },
+    {
+      "title": "第一个程序",
+      "actions": [
+        {"type": "narration", "text": "让我们写第一个 Python 程序"},
+        {"type": "code", "language": "python", "content": "print('Hello, World!')"},
+        {"type": "quiz", "question": "print() 函数的作用是？", "options": ["输出内容到屏幕", "读取用户输入", "定义变量"], "answer": 0}
+      ]
+    }
+  ]
+}
+EOF
 ```
 
 ### 2. 创建教学 session
 ```bash
-pawclass session load --outline "$(cat /tmp/outline.json)"
-→ {"id":"ses_xxx","status":"generating"}
+pawclass session load --outline @/tmp/outline.json
+# → {"id":"ses_xxx","status":"generating"}
 ```
 
-### 3. 等待生成完成
+### 3. 检查 session 状态
 ```bash
 pawclass session status ses_xxx
-→ {"status":"ready","totalSteps":7}
+# → {"status":"ready","totalSteps":7}
 ```
 
-### 4. 在聊天中嵌入教学界面并开始
-在回复中嵌入链接，前端会自动打开 App Panel：
+### 4. 在聊天中发送教学链接
 
-"好的，我来给你系统讲一下。
-[pawclass:ses_xxx](http://localhost:9801/session/ses_xxx)"
+在回复中用这个格式嵌入链接，前端会自动打开教学面板：
+```
+[clawbox-pawclass:ses_xxx](https://pawclass.teachclaw.app/session/ses_xxx)
+```
 
+然后开始播放：
 ```bash
 pawclass session play ses_xxx
 ```
 
-### 5. 教学应用自主播放
+### 5. 教学过程中
 
-关键事件会作为系统通知出现在聊天中：
-- "[pawclass] 第4步测验完成，答对3/5题"
-- "[pawclass] 学生请求帮助"
-- "[pawclass] 教学完成"
+教学应用会自主播放。关键事件会作为系统通知出现在聊天中：
+- "[clawbox-pawclass] 第4步测验完成，答对3/5题"
+- "[clawbox-pawclass] 学生请求帮助"
+- "[clawbox-pawclass] 教学完成"
 
-### 6. 按需响应通知
-
-查看测验结果：
+### 6. 按需操作
 ```bash
-pawclass session results ses_xxx
+pawclass session pause ses_xxx    # 暂停
+pawclass session resume ses_xxx   # 继续
+pawclass session results ses_xxx  # 查看测验结果
+pawclass session stop ses_xxx     # 结束
 ```
-
-暂停/继续：
-```bash
-pawclass session pause ses_xxx
-pawclass session resume ses_xxx
-```
-
-### 7. 测验结果闭环
-- 答错的题 → 录入错题本
-- 答对的相关错题 → 标记掌握
 
 ## 使用场景
 
-- 学生说"帮我讲讲二次函数" → 拿大纲 → 启动教学
-- 学生某知识点反复做错 → 主动建议上课
-- 学生说"我想复习力学" → 启动混合模式教学
+- 学生说"帮我讲讲 Python" → 写大纲 JSON → 创建 session → 发链接
+- 学生说"我想复习数学" → 写数学大纲 → 开始教学
+- 收到测验通知 → 查看结果 → 答错的建议再学
 
 ## 注意事项
 
+- **不要运行** `pawclass serve` 或 `pawclass migrate`（那是服务端命令）
 - 启动教学后不需要管理播放节奏，应用会自主推进
 - 系统通知自动出现在聊天中，按需响应即可
-- 教学界面链接格式: [pawclass:session_id](url)
