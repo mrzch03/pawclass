@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 
 export const mistakes = pgTable("mistakes", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -28,7 +28,20 @@ export const reviews = pgTable("reviews", {
   createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
 });
 
+export const courses = pgTable("courses", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("draft"),
+  currentStepIndex: integer("current_step_index").notNull().default(0),
+  scenes: jsonb("scenes").notNull().default([]),
+  quizResults: jsonb("quiz_results").notNull().default([]),
+  createdAt: timestamp("created_at", { mode: "string" }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { mode: "string" }),
+  completedAt: timestamp("completed_at", { mode: "string" }),
+});
+
 export type Mistake = typeof mistakes.$inferSelect;
 export type NewMistake = typeof mistakes.$inferInsert;
 export type Review = typeof reviews.$inferSelect;
 export type NewReview = typeof reviews.$inferInsert;
+export type CourseRow = typeof courses.$inferSelect;

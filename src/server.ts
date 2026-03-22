@@ -9,7 +9,7 @@ import { createCliDistRoutes } from "./routes/cli-dist.js";
 import { createCourseRoutes } from "./routes/course.js";
 import { createSessionRouter } from "./stage/session-router.js";
 import { sessionStore } from "./stage/session-store.js";
-import { courseStore } from "./stage/course-store.js";
+import { courseStore, initCourseStore } from "./stage/course-store.js";
 import { ServerPlaybackEngine } from "./stage/playback/server-engine.js";
 import { createEventEmitter } from "./stage/events/event-emitter.js";
 import { getAudioPath } from "./stage/tts/tts-generator.js";
@@ -21,6 +21,9 @@ import type { AuthVariables } from "./auth/types.js";
 import type { QuizResult } from "./stage/types.js";
 
 export function createServer(db: DB): Hono {
+  // Init course store with DB for persistence
+  initCourseStore(db);
+
   const app = new Hono();
 
   app.use("/*", cors());

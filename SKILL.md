@@ -1,20 +1,20 @@
 ---
 name: pawclass
 description: Teaching cloud app — build interactive courses with atomic CLI commands. Create courses, add slides/code/quiz/interactive scenes, add narration and whiteboard elements, manage mistakes.
-metadata: {"openclaw":{"requires":{"bins":["pawclass"]}}}
+metadata: {"openclaw":{"requires":{"bins":["pawclass"],"env":["PAWCLASS_TOKEN"]},"primaryEnv":"PAWCLASS_TOKEN"}}
 ---
 
 # PawClass — Agent 内容创作工具
 
 PawClass 是**远程云服务**，已部署好。用 `pawclass` CLI 的原子命令逐步构建课程。
 
-## 环境变量
+## 重要：环境已预配置
 
-```bash
-# 已预配置，通常不需要设置
-PAWCLASS_BASE_URL="https://pawclass.teachclaw.app"
-PAWCLASS_TOKEN="<oauth-token>"  # → Authorization: Bearer header
-```
+> **所有环境变量已自动配置好，直接使用命令即可。**
+>
+> - `PAWCLASS_BASE_URL` 和 `PAWCLASS_TOKEN` 已注入，**不要修改、不要 unset、不要重新设置**。
+> - **不要运行** `pawclass serve` 或 `pawclass migrate`（那是服务端命令，不是 CLI 命令）。
+> - **不要尝试启动本地服务**，CLI 直接调用远程 API。
 
 ## 课程创建流程
 
@@ -69,17 +69,18 @@ pawclass whiteboard add crs_xxx --type text --content "重点！" --x 100 --y 20
 # stdout: {"sceneIndex":1,"actionId":"xxx"}
 ```
 
-### 3. 定稿并播放
+### 3. 在聊天中发送课程链接
+
+创建课程后，用以下格式发送链接，前端会自动渲染为可点击的教学卡片：
+```
+[clawbox-pawclass:crs_xxx](https://pawclass.teachclaw.app/course/crs_xxx)
+```
+
+### 4. 定稿并播放
 
 ```bash
 pawclass course finalize crs_xxx
 pawclass course play crs_xxx
-```
-
-### 4. 在聊天中发送链接
-
-```
-[clawbox-pawclass:crs_xxx](https://pawclass.teachclaw.app/course/crs_xxx)
 ```
 
 ### 5. 播放控制
@@ -120,7 +121,10 @@ pawclass narration add crs_xxx --text "这是最基本的 Python 代码，print 
 # 4. 第三个场景：测验
 pawclass quiz add crs_xxx --question "print() 函数的作用是？" --options "输出内容到屏幕,读取用户输入,定义变量" --answer 0
 
-# 5. 定稿 + 播放
+# 5. 发送课程链接（前端自动打开教学面板）
+# 在回复中包含：[clawbox-pawclass:crs_xxx](https://pawclass.teachclaw.app/course/crs_xxx)
+
+# 6. 定稿 + 播放
 pawclass course finalize crs_xxx
 pawclass course play crs_xxx
 ```
@@ -145,8 +149,11 @@ pawclass stats
 
 ## 注意事项
 
-- **不要运行** `pawclass serve` 或 `pawclass migrate`（服务端命令）
+- **环境已配好** — `PAWCLASS_TOKEN` 和 `PAWCLASS_BASE_URL` 已自动注入，不要修改
+- **不要运行** `pawclass serve` 或 `pawclass migrate`（服务端命令，不是给 Agent 用的）
+- **不要尝试本地模式** — CLI 直接调用远程 `https://pawclass.teachclaw.app`
+- 课程数据持久化在数据库，**服务重启不会丢失**
 - 课程支持**渐进式加载**：创建后浏览器立即可以打开，内容会实时出现
 - draft 和 playing 状态都可以继续添加内容
 - stdout 输出 JSON（给 Agent 解析），stderr 输出人类可读状态
-- 系统通知自动出现在聊天中，按需响应即可
+- 在聊天中发送 `[clawbox-pawclass:crs_xxx](url)` 格式的链接，前端自动打开教学面板
