@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serveStatic } from "hono/bun";
 import { stream } from "hono/streaming";
 import { existsSync, readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApiRoutes } from "./routes/api.js";
 import { createTeachingRoutes } from "./routes/teaching.js";
 import { createOAuthRoutes } from "./routes/oauth.js";
@@ -23,6 +26,10 @@ import type { QuizResult } from "./stage/types.js";
 export function createServer(db: DB): Hono {
   // Init course store with DB for persistence
   initCourseStore(db);
+
+  // Load Vite-built frontend index.html (used for course/session pages)
+  const frontendIndexPath = resolve(dirname(fileURLToPath(import.meta.url)), "../frontend/dist/index.html");
+  const frontendHtml = existsSync(frontendIndexPath) ? readFileSync(frontendIndexPath, "utf-8") : null;
 
   const app = new Hono();
 
@@ -132,12 +139,12 @@ export function createServer(db: DB): Hono {
 
   // Course frontend page
   app.get("/course/:id", (c) => {
-    return c.html(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PawClass</title></head>
-<body><div id="root"></div>
-<script>window.__STAGE_SESSION_ID__="${c.req.param("id")}";window.__STAGE_MODE__="course"</script>
-<script type="module" src="/frontend/main.js"></script>
-</body></html>`);
+    if (!frontendHtml) return c.text("Frontend not built. Run: cd frontend && bun run build", 500);
+    const html = frontendHtml.replace(
+      "</head>",
+      `<script>window.__STAGE_SESSION_ID__="${c.req.param("id")}";window.__STAGE_MODE__="course"</script></head>`
+    );
+    return c.html(html);
   });
 
   // SSE streaming
@@ -200,13 +207,16 @@ export function createServer(db: DB): Hono {
 
   // Stage frontend page
   app.get("/session/:id", (c) => {
-    return c.html(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PawClass</title></head>
-<body><div id="root"></div>
-<script>window.__STAGE_SESSION_ID__="${c.req.param("id")}"</script>
-<script type="module" src="/frontend/main.js"></script>
-</body></html>`);
+    if (!frontendHtml) return c.text("Frontend not built. Run: cd frontend && bun run build", 500);
+    const html = frontendHtml.replace(
+      "</head>",
+      `<script>window.__STAGE_SESSION_ID__="${c.req.param("id")}"</script></head>`
+    );
+    return c.html(html);
   });
+
+  // Serve frontend SPA static files (Vite build output → frontend/dist/)
+  app.use("/frontend/*", serveStatic({ root: "./frontend/dist", rewriteRequestPath: (path) => path.replace(/^\/frontend/, "") }));
 
   // Web UI routes (mistakes management pages)
   app.get("/", (c) => c.html(getIndexHtml()));
