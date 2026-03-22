@@ -92,10 +92,9 @@ export function createServer(db: DB): Hono {
 
   // --- Course routes ---
   const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
-  const courseApp = new Hono<{ Variables: AuthVariables }>();
 
-  // Public routes (no auth — accessed by browser)
-  courseApp.get("/:id/stream", (c) => {
+  // Public course endpoints (no auth — accessed by browser)
+  app.get("/api/course/:id/stream", (c) => {
     const courseId = c.req.param("id");
     const course = courseStore.get(courseId);
     if (!course) return c.json({ error: "course not found" }, 404);
@@ -121,22 +120,20 @@ export function createServer(db: DB): Hono {
       await new Promise(() => {});
     });
   });
-  courseApp.post("/:id/step-complete", async (c) => {
+  app.post("/api/course/:id/step-complete", async (c) => {
     const body = await c.req.json<{ stepIndex: number }>();
     await engine.onStepComplete(c.req.param("id"), body.stepIndex);
     return c.json({ ok: true });
   });
-  courseApp.post("/:id/quiz-submit", async (c) => {
+  app.post("/api/course/:id/quiz-submit", async (c) => {
     const body = await c.req.json<{ stepIndex: number; result: QuizResult }>();
     await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
     return c.json({ ok: true });
   });
 
-  // Authenticated routes (Bearer auth — called by CLI)
-  // Auth applied inside createCourseRoutes, not globally
-  courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
-
-  app.route("/api/course", courseApp);
+  // Authenticated course endpoints (Bearer auth — called by CLI)
+  // createCourseRoutes applies authMiddleware internally
+  app.route("/api/course", createCourseRoutes({ engine, baseUrl }));
 
   // Course frontend page
   app.get("/course/:id", (c) => {
