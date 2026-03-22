@@ -20,7 +20,7 @@
  */
 
 const PAWCLASS_BASE_URL = process.env.PAWCLASS_BASE_URL || "https://pawclass.teachclaw.app";
-const API_KEY = process.env.PAWCLASS_API_KEY || "";
+const TOKEN = process.env.PAWCLASS_TOKEN || "";
 
 // ---------------------------------------------------------------------------
 // Arg parser
@@ -46,7 +46,7 @@ function parseArgs(args: string[]): { flags: Record<string, string>; positional:
 
 function apiHeaders(body?: unknown): Record<string, string> {
   const h: Record<string, string> = {};
-  if (API_KEY) h["X-API-Key"] = API_KEY;
+  if (TOKEN) h["Authorization"] = `Bearer ${TOKEN}`;
   if (body) h["Content-Type"] = "application/json";
   return h;
 }
@@ -333,7 +333,7 @@ function usage(): void {
 
 环境变量:
   PAWCLASS_BASE_URL     服务地址 (默认 https://pawclass.teachclaw.app)
-  PAWCLASS_API_KEY      API 密钥 → X-API-Key header`);
+  PAWCLASS_TOKEN        OAuth access token → Authorization: Bearer header`);
 }
 
 // ---------------------------------------------------------------------------

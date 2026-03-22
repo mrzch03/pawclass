@@ -16,7 +16,7 @@ import { getAudioPath } from "./stage/tts/tts-generator.js";
 import type { DB } from "./db/connection.js";
 import { createMistakeRepo } from "./repo/mistake-repo.js";
 import { createReviewRepo } from "./repo/review-repo.js";
-import { authMiddleware, apiKeyMiddleware } from "./auth/middleware.js";
+import { authMiddleware } from "./auth/middleware.js";
 import type { AuthVariables } from "./auth/types.js";
 import type { QuizResult } from "./stage/types.js";
 
@@ -83,7 +83,7 @@ export function createServer(db: DB): Hono {
   // --- Course routes (API key auth) ---
   const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
   const courseApp = new Hono<{ Variables: AuthVariables }>();
-  courseApp.use("/*", apiKeyMiddleware);
+  courseApp.use("/*", authMiddleware);
   courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
   app.route("/api/course", courseApp);
 

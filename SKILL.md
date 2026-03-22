@@ -13,7 +13,7 @@ PawClass 是**远程云服务**，已部署好。用 `pawclass` CLI 的原子命
 ```bash
 # 已预配置，通常不需要设置
 PAWCLASS_BASE_URL="https://pawclass.teachclaw.app"
-PAWCLASS_API_KEY="<your-api-key>"  # → X-API-Key header
+PAWCLASS_TOKEN="<oauth-token>"  # → Authorization: Bearer header
 ```
 
 ## 课程创建流程
