@@ -90,14 +90,8 @@ export function createServer(db: DB): Hono {
 
   app.route("/api/session", sessionRouter);
 
-  // --- Course routes (API key auth) ---
-  const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
-  const courseApp = new Hono<{ Variables: AuthVariables }>();
-  courseApp.use("/*", authMiddleware);
-  courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
-  app.route("/api/course", courseApp);
-
-  // Course SSE streaming (public — accessed by browser)
+  // --- Course public routes (no auth — accessed by browser) ---
+  // Must be registered BEFORE the authenticated courseApp to avoid auth interception
   app.get("/api/course/:id/stream", (c) => {
     const courseId = c.req.param("id");
     const course = courseStore.get(courseId);
@@ -136,6 +130,13 @@ export function createServer(db: DB): Hono {
     await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
     return c.json({ ok: true });
   });
+
+  // --- Course authenticated routes (Bearer auth — called by CLI) ---
+  const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
+  const courseApp = new Hono<{ Variables: AuthVariables }>();
+  courseApp.use("/*", authMiddleware);
+  courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
+  app.route("/api/course", courseApp);
 
   // Course frontend page
   app.get("/course/:id", (c) => {
