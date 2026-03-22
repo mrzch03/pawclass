@@ -133,7 +133,7 @@ export function createServer(db: DB): Hono {
   });
 
   // Authenticated routes (Bearer auth — called by CLI)
-  courseApp.use("/*", authMiddleware);
+  // Auth applied inside createCourseRoutes, not globally
   courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
 
   app.route("/api/course", courseApp);

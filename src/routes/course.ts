@@ -17,7 +17,9 @@ import {
   buildNarrationAction,
   buildWhiteboardAction,
 } from "../stage/course-builder.js";
+import { authMiddleware } from "../auth/middleware.js";
 import type { ServerPlaybackEngine } from "../stage/playback/server-engine.js";
+import type { AuthVariables } from "../auth/types.js";
 
 export interface CourseRouterDeps {
   engine: ServerPlaybackEngine;
@@ -26,7 +28,10 @@ export interface CourseRouterDeps {
 
 export function createCourseRoutes(deps: CourseRouterDeps) {
   const { engine, baseUrl } = deps;
-  const app = new Hono();
+  const app = new Hono<{ Variables: AuthVariables }>();
+
+  // All routes in this file require Bearer auth
+  app.use("/*", authMiddleware);
 
   // POST /api/course — create a new empty course
   app.post("/", async (c) => {
