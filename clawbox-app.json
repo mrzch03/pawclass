@@ -1,11 +1,11 @@
 {
   "name": "pawclass",
-  "version": "0.1.0",
-  "description": "教学云应用 — 错题管理 + 个性化教学大纲 + 互动课堂",
+  "version": "0.2.0",
+  "description": "教学云应用 — 原子化课程创建 + 错题管理 + 互动课堂",
   "type": "cloud",
   "cli": {
     "bin": "pawclass",
-    "commands": ["serve", "migrate", "session", "help"]
+    "commands": ["course", "slide", "code", "quiz", "interactive", "narration", "whiteboard", "mistake", "stats", "serve", "migrate"]
   },
   "skill": "SKILL.md",
   "ui": {
