@@ -1,100 +1,152 @@
 ---
 name: pawclass
-description: Teaching cloud app — mistake tracking + interactive lessons. Use the pawclass CLI to manage teaching sessions. The server is already running remotely.
+description: Teaching cloud app — build interactive courses with atomic CLI commands. Create courses, add slides/code/quiz/interactive scenes, add narration and whiteboard elements, manage mistakes.
 metadata: {"openclaw":{"requires":{"bins":["pawclass"]}}}
 ---
 
-# PawClass — 教学云应用
+# PawClass — Agent 内容创作工具
 
-PawClass 是一个**远程云服务**，已经部署好了。你只需要用 `pawclass` CLI 来调用它。
-
-**不需要**：启动服务、配置数据库、设置 API key。这些都已经在服务端配好了。
+PawClass 是**远程云服务**，已部署好。用 `pawclass` CLI 的原子命令逐步构建课程。
 
 ## 环境变量
 
-CLI 需要 `PAWCLASS_BASE_URL` 来知道服务地址。如果没设置，先设一下：
 ```bash
-export PAWCLASS_BASE_URL="https://pawclass.teachclaw.app"
+# 已预配置，通常不需要设置
+PAWCLASS_BASE_URL="https://pawclass.teachclaw.app"
+PAWCLASS_API_KEY="<your-api-key>"  # → X-API-Key header
 ```
 
-## 教学流程
+## 课程创建流程
 
-### 1. 创建教学大纲（JSON 格式）
+### 1. 创建空课程
 
-根据学生需求写一个教学大纲 JSON 文件：
 ```bash
-cat > /tmp/outline.json << 'EOF'
-{
-  "title": "Python 基础入门",
-  "scenario": "knowledge_first",
-  "scenes": [
-    {
-      "title": "什么是 Python",
-      "actions": [
-        {"type": "narration", "text": "Python 是一门简洁优雅的编程语言..."},
-        {"type": "slide", "content": "# Python 特点\n- 简洁易读\n- 生态丰富\n- 跨平台"}
-      ]
-    },
-    {
-      "title": "第一个程序",
-      "actions": [
-        {"type": "narration", "text": "让我们写第一个 Python 程序"},
-        {"type": "code", "language": "python", "content": "print('Hello, World!')"},
-        {"type": "quiz", "question": "print() 函数的作用是？", "options": ["输出内容到屏幕", "读取用户输入", "定义变量"], "answer": 0}
-      ]
-    }
-  ]
-}
-EOF
+pawclass course create --title "Python 基础"
+# stdout: {"id":"crs_xxx","url":"https://pawclass.teachclaw.app/course/crs_xxx","status":"draft"}
 ```
 
-### 2. 创建教学 session
+### 2. 逐步添加内容
+
+每个命令都是原子操作，立即生效。浏览器端实时看到内容出现。
+
+**添加幻灯片**（创建新 Scene）：
 ```bash
-pawclass session load --outline @/tmp/outline.json
-# → {"id":"ses_xxx","status":"generating"}
+pawclass slide add crs_xxx --title "什么是 Python" --content "# Python 特点\n- 简洁易读\n- 生态丰富\n- 跨平台"
+# stdout: {"sceneIndex":0,"sceneId":"xxx"}
 ```
 
-### 3. 检查 session 状态
+**添加代码块**（创建新 Scene）：
 ```bash
-pawclass session status ses_xxx
-# → {"status":"ready","totalSteps":7}
+pawclass code add crs_xxx --language python --content "print('Hello, World!')"
+# 可选: --title "自定义标题"
+# stdout: {"sceneIndex":1,"sceneId":"xxx"}
 ```
 
-### 4. 在聊天中发送教学链接
-
-在回复中用这个格式嵌入链接，前端会自动打开教学面板：
-```
-[clawbox-pawclass:ses_xxx](https://pawclass.teachclaw.app/session/ses_xxx)
-```
-
-然后开始播放：
+**添加测验**（创建新 Scene）：
 ```bash
-pawclass session play ses_xxx
+pawclass quiz add crs_xxx --question "print() 函数的作用是？" --options "输出内容,读取输入,定义变量" --answer 0
+# stdout: {"sceneIndex":2,"sceneId":"xxx"}
 ```
 
-### 5. 教学过程中
-
-教学应用会自主播放。关键事件会作为系统通知出现在聊天中：
-- "[clawbox-pawclass] 第4步测验完成，答对3/5题"
-- "[clawbox-pawclass] 学生请求帮助"
-- "[clawbox-pawclass] 教学完成"
-
-### 6. 按需操作
+**添加互动场景**（创建新 Scene）：
 ```bash
-pawclass session pause ses_xxx    # 暂停
-pawclass session resume ses_xxx   # 继续
-pawclass session results ses_xxx  # 查看测验结果
-pawclass session stop ses_xxx     # 结束
+pawclass interactive add crs_xxx --type code-editor --language python
+# stdout: {"sceneIndex":3,"sceneId":"xxx"}
 ```
 
-## 使用场景
+**添加旁白**（追加到最后一个 Scene 的 actions）：
+```bash
+pawclass narration add crs_xxx --text "让我们来看看第一个 Python 程序"
+# stdout: {"sceneIndex":1,"actionId":"xxx"}
+```
 
-- 学生说"帮我讲讲 Python" → 写大纲 JSON → 创建 session → 发链接
-- 学生说"我想复习数学" → 写数学大纲 → 开始教学
-- 收到测验通知 → 查看结果 → 答错的建议再学
+**添加白板元素**（追加到最后一个 Scene 的 actions）：
+```bash
+pawclass whiteboard add crs_xxx --type text --content "重点！" --x 100 --y 200
+# 可选: --fontSize 24 --color "#ff0000" --width 200 --height 50
+# type: text | shape | latex | line
+# shape 类型可选: --shape rectangle|circle|triangle
+# stdout: {"sceneIndex":1,"actionId":"xxx"}
+```
+
+### 3. 定稿并播放
+
+```bash
+pawclass course finalize crs_xxx
+pawclass course play crs_xxx
+```
+
+### 4. 在聊天中发送链接
+
+```
+[clawbox-pawclass:crs_xxx](https://pawclass.teachclaw.app/course/crs_xxx)
+```
+
+### 5. 播放控制
+
+```bash
+pawclass course pause crs_xxx
+pawclass course resume crs_xxx
+pawclass course stop crs_xxx
+pawclass course results crs_xxx   # 测验结果
+pawclass course status crs_xxx    # 查询状态
+```
+
+## 分组策略
+
+| 命令 | 行为 |
+|------|------|
+| `slide add` | 创建新 Scene |
+| `code add` | 创建新 Scene |
+| `quiz add` | 创建新 Scene |
+| `interactive add` | 创建新 Scene |
+| `narration add` | 追加到最后一个 Scene 的 actions |
+| `whiteboard add` | 追加到最后一个 Scene 的 actions |
+
+## 典型教学工作流
+
+```bash
+# 1. 创建课程
+pawclass course create --title "Python 基础入门"
+
+# 2. 第一个场景：介绍
+pawclass slide add crs_xxx --title "什么是 Python" --content "# Python\n- 简洁易读\n- 生态丰富"
+pawclass narration add crs_xxx --text "Python 是一门非常流行的编程语言"
+
+# 3. 第二个场景：代码演示
+pawclass code add crs_xxx --language python --content "# 第一个程序\nprint('Hello, World!')\n\n# 变量赋值\nname = 'Alice'\nprint(f'Hello, {name}!')"
+pawclass narration add crs_xxx --text "这是最基本的 Python 代码，print 函数用来输出内容"
+
+# 4. 第三个场景：测验
+pawclass quiz add crs_xxx --question "print() 函数的作用是？" --options "输出内容到屏幕,读取用户输入,定义变量" --answer 0
+
+# 5. 定稿 + 播放
+pawclass course finalize crs_xxx
+pawclass course play crs_xxx
+```
+
+## 错题管理
+
+```bash
+# 添加错题
+pawclass mistake add --subject "数学" --problem "2+3=?" --answer "5" --wrong "4"
+# 可选: --topic "加法" --difficulty 3
+
+# 列出错题
+pawclass mistake list
+pawclass mistake list --subject "数学" --topic "加法"
+
+# 标记已掌握
+pawclass mistake master <mistake-id>
+
+# 查看统计
+pawclass stats
+```
 
 ## 注意事项
 
-- **不要运行** `pawclass serve` 或 `pawclass migrate`（那是服务端命令）
-- 启动教学后不需要管理播放节奏，应用会自主推进
+- **不要运行** `pawclass serve` 或 `pawclass migrate`（服务端命令）
+- 课程支持**渐进式加载**：创建后浏览器立即可以打开，内容会实时出现
+- draft 和 playing 状态都可以继续添加内容
+- stdout 输出 JSON（给 Agent 解析），stderr 输出人类可读状态
 - 系统通知自动出现在聊天中，按需响应即可

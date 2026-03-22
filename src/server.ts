@@ -6,15 +6,17 @@ import { createApiRoutes } from "./routes/api.js";
 import { createTeachingRoutes } from "./routes/teaching.js";
 import { createOAuthRoutes } from "./routes/oauth.js";
 import { createCliDistRoutes } from "./routes/cli-dist.js";
+import { createCourseRoutes } from "./routes/course.js";
 import { createSessionRouter } from "./stage/session-router.js";
 import { sessionStore } from "./stage/session-store.js";
+import { courseStore } from "./stage/course-store.js";
 import { ServerPlaybackEngine } from "./stage/playback/server-engine.js";
 import { createEventEmitter } from "./stage/events/event-emitter.js";
 import { getAudioPath } from "./stage/tts/tts-generator.js";
 import type { DB } from "./db/connection.js";
 import { createMistakeRepo } from "./repo/mistake-repo.js";
 import { createReviewRepo } from "./repo/review-repo.js";
-import { authMiddleware } from "./auth/middleware.js";
+import { authMiddleware, apiKeyMiddleware } from "./auth/middleware.js";
 import type { AuthVariables } from "./auth/types.js";
 import type { QuizResult } from "./stage/types.js";
 
@@ -77,6 +79,63 @@ export function createServer(db: DB): Hono {
   });
 
   app.route("/api/session", sessionRouter);
+
+  // --- Course routes (API key auth) ---
+  const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
+  const courseApp = new Hono<{ Variables: AuthVariables }>();
+  courseApp.use("/*", apiKeyMiddleware);
+  courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
+  app.route("/api/course", courseApp);
+
+  // Course SSE streaming (public — accessed by browser)
+  app.get("/api/course/:id/stream", (c) => {
+    const courseId = c.req.param("id");
+    const course = courseStore.get(courseId);
+    if (!course) return c.json({ error: "course not found" }, 404);
+
+    return stream(c, async (s) => {
+      c.header("Content-Type", "text/event-stream");
+      c.header("Cache-Control", "no-cache");
+      c.header("Connection", "keep-alive");
+
+      const unsubscribe = engine.subscribe(courseId, (event) => {
+        try { s.write(`data: ${JSON.stringify(event)}\n\n`); } catch {}
+      });
+
+      s.write(`data: ${JSON.stringify({
+        type: "init",
+        status: course.status,
+        currentStepIndex: course.currentStepIndex,
+        totalSteps: course.scenes.length,
+        scenes: course.scenes,
+      })}\n\n`);
+
+      s.onAbort(() => unsubscribe());
+      await new Promise(() => {});
+    });
+  });
+
+  // Course step-complete + quiz-submit endpoints (public — called by frontend)
+  app.post("/api/course/:id/step-complete", async (c) => {
+    const body = await c.req.json<{ stepIndex: number }>();
+    await engine.onStepComplete(c.req.param("id"), body.stepIndex);
+    return c.json({ ok: true });
+  });
+  app.post("/api/course/:id/quiz-submit", async (c) => {
+    const body = await c.req.json<{ stepIndex: number; result: QuizResult }>();
+    await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
+    return c.json({ ok: true });
+  });
+
+  // Course frontend page
+  app.get("/course/:id", (c) => {
+    return c.html(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PawClass</title></head>
+<body><div id="root"></div>
+<script>window.__STAGE_SESSION_ID__="${c.req.param("id")}";window.__STAGE_MODE__="course"</script>
+<script type="module" src="/frontend/main.js"></script>
+</body></html>`);
+  });
 
   // SSE streaming
   app.get("/api/session/:id/stream", (c) => {

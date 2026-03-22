@@ -1,48 +1,30 @@
 #!/usr/bin/env node
 
 /**
- * PawClass — 教学云应用
+ * PawClass CLI — Agent 内容创作工具
  *
- * 融合错题管理 + 教学大纲生成 + 互动课堂播放
+ * 原子命令逐步构建课程，支持渐进式加载。
  *
  * 用法:
- *   pawclass serve              启动 HTTP 服务
- *   pawclass migrate            执行数据库迁移
- *   pawclass session <command>  教学 session 管理
- *   pawclass help               显示帮助
+ *   pawclass course <command>     课程管理
+ *   pawclass slide add <id>       添加幻灯片
+ *   pawclass code add <id>        添加代码块
+ *   pawclass quiz add <id>        添加测验
+ *   pawclass interactive add <id> 添加互动
+ *   pawclass narration add <id>   添加旁白
+ *   pawclass whiteboard add <id>  添加白板元素
+ *   pawclass mistake <command>    错题管理
+ *   pawclass stats                统计数据
+ *   pawclass serve                启动 HTTP 服务
+ *   pawclass migrate              数据库迁移
  */
 
-import { createDB } from "./db/connection.js";
-import { startServer } from "./server.js";
+const PAWCLASS_BASE_URL = process.env.PAWCLASS_BASE_URL || "https://pawclass.teachclaw.app";
+const API_KEY = process.env.PAWCLASS_API_KEY || "";
 
-const DB_URL = process.env.DATABASE_URL;
-const PAWCLASS_BASE_URL = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || 9801}`;
-
-function usage(): void {
-  console.log(`pawclass — 教学云应用（错题本 + 互动课堂）
-
-用法:
-  pawclass serve                              启动 HTTP 服务
-  pawclass migrate                            执行数据库迁移
-  pawclass session load --outline <json>      创建教学 session
-  pawclass session status <id>                查询 session 状态
-  pawclass session play <id>                  开始播放
-  pawclass session pause <id>                 暂停播放
-  pawclass session resume <id>                继续播放
-  pawclass session goto <id> --step <n>       跳到某步
-  pawclass session stop <id>                  结束 session
-  pawclass session results <id>               查看测验结果
-  pawclass help                               显示帮助
-
-环境变量:
-  DATABASE_URL            PostgreSQL 连接字符串
-  PAWCLASS_PORT           HTTP 端口 (默认 9801)
-  PAWCLASS_BASE_URL       外部访问地址
-  PAWCLASS_AI_API_KEY     AI API Key
-  PAWCLASS_AI_MODEL       AI 模型 (默认 gpt-4o)
-  CLAWBOX_BACKEND_URL     Backend 地址 (事件通知)
-  APP_SECRET              应用密钥`);
-}
+// ---------------------------------------------------------------------------
+// Arg parser
+// ---------------------------------------------------------------------------
 
 function parseArgs(args: string[]): { flags: Record<string, string>; positional: string[] } {
   const flags: Record<string, string> = {};
@@ -58,10 +40,21 @@ function parseArgs(args: string[]): { flags: Record<string, string>; positional:
   return { flags, positional };
 }
 
-async function apiRequest(method: string, path: string, body?: unknown): Promise<unknown> {
+// ---------------------------------------------------------------------------
+// API client
+// ---------------------------------------------------------------------------
+
+function apiHeaders(body?: unknown): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (API_KEY) h["X-API-Key"] = API_KEY;
+  if (body) h["Content-Type"] = "application/json";
+  return h;
+}
+
+async function api(method: string, path: string, body?: unknown): Promise<unknown> {
   const res = await fetch(`${PAWCLASS_BASE_URL}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : {},
+    headers: apiHeaders(body),
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json();
@@ -71,110 +64,353 @@ async function apiRequest(method: string, path: string, body?: unknown): Promise
   return data;
 }
 
-async function handleSession(subCommand: string, rest: string[]) {
+/** stdout: JSON for Agent consumption */
+function out(data: unknown): void {
+  console.log(JSON.stringify(data, null, 2));
+}
+
+/** stderr: human-readable status */
+function info(msg: string): void {
+  process.stderr.write(`[pawclass] ${msg}\n`);
+}
+
+// ---------------------------------------------------------------------------
+// Course commands
+// ---------------------------------------------------------------------------
+
+async function handleCourse(action: string, rest: string[]) {
   const { flags, positional } = parseArgs(rest);
 
-  switch (subCommand) {
-    case "load": {
-      let outlineStr = flags.outline;
-      if (!outlineStr) { console.error("错误: --outline 参数必须提供"); process.exit(1); }
-      if (outlineStr.startsWith("@")) {
-        const { readFileSync } = await import("node:fs");
-        outlineStr = readFileSync(outlineStr.slice(1), "utf-8");
-      }
-      let outline: unknown;
-      try { outline = JSON.parse(outlineStr); } catch { console.error("错误: outline 不是有效的 JSON"); process.exit(1); }
-      const data = await apiRequest("POST", "/api/session", { outline });
-      process.stderr.write(`[pawclass] Session 已创建\n`);
-      console.log(JSON.stringify(data, null, 2));
+  switch (action) {
+    case "create": {
+      const title = flags.title;
+      if (!title) { console.error("用法: pawclass course create --title <标题>"); process.exit(1); }
+      const data = await api("POST", "/api/course", { title });
+      info("课程已创建");
+      out(data);
       break;
     }
     case "status": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass session status <id>"); process.exit(1); }
-      console.log(JSON.stringify(await apiRequest("GET", `/api/session/${id}`), null, 2));
+      if (!id) { console.error("用法: pawclass course status <id>"); process.exit(1); }
+      out(await api("GET", `/api/course/${id}`));
+      break;
+    }
+    case "finalize": {
+      const id = positional[0];
+      if (!id) { console.error("用法: pawclass course finalize <id>"); process.exit(1); }
+      const data = await api("POST", `/api/course/${id}/finalize`);
+      info("课程已定稿");
+      out(data);
       break;
     }
     case "play": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass session play <id>"); process.exit(1); }
-      const data = await apiRequest("POST", `/api/session/${id}/play`);
-      process.stderr.write(`[pawclass] 开始播放\n`);
-      console.log(JSON.stringify(data, null, 2));
+      if (!id) { console.error("用法: pawclass course play <id>"); process.exit(1); }
+      const data = await api("POST", `/api/course/${id}/play`);
+      info("开始播放");
+      out(data);
       break;
     }
     case "pause": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass session pause <id>"); process.exit(1); }
-      await apiRequest("POST", `/api/session/${id}/pause`);
-      process.stderr.write(`[pawclass] 已暂停\n`);
+      if (!id) { console.error("用法: pawclass course pause <id>"); process.exit(1); }
+      const data = await api("POST", `/api/course/${id}/pause`);
+      info("已暂停");
+      out(data);
       break;
     }
     case "resume": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass session resume <id>"); process.exit(1); }
-      await apiRequest("POST", `/api/session/${id}/resume`);
-      process.stderr.write(`[pawclass] 已继续\n`);
-      break;
-    }
-    case "goto": {
-      const id = positional[0];
-      const stepIndex = parseInt(flags.step ?? "", 10);
-      if (!id || isNaN(stepIndex)) { console.error("用法: pawclass session goto <id> --step <n>"); process.exit(1); }
-      await apiRequest("POST", `/api/session/${id}/goto`, { stepIndex });
-      process.stderr.write(`[pawclass] 跳转到步骤 ${stepIndex}\n`);
+      if (!id) { console.error("用法: pawclass course resume <id>"); process.exit(1); }
+      const data = await api("POST", `/api/course/${id}/resume`);
+      info("已继续");
+      out(data);
       break;
     }
     case "stop": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass session stop <id>"); process.exit(1); }
-      await apiRequest("POST", `/api/session/${id}/stop`);
-      process.stderr.write(`[pawclass] 已结束\n`);
+      if (!id) { console.error("用法: pawclass course stop <id>"); process.exit(1); }
+      const data = await api("POST", `/api/course/${id}/stop`);
+      info("已结束");
+      out(data);
       break;
     }
     case "results": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass session results <id>"); process.exit(1); }
-      console.log(JSON.stringify(await apiRequest("GET", `/api/session/${id}/results`), null, 2));
+      if (!id) { console.error("用法: pawclass course results <id>"); process.exit(1); }
+      out(await api("GET", `/api/course/${id}/results`));
       break;
     }
     default:
-      console.error(`未知子命令: ${subCommand}`);
+      console.error(`未知 course 子命令: ${action}`);
       process.exit(1);
   }
 }
 
+// ---------------------------------------------------------------------------
+// Content addition commands (slide, code, quiz, interactive, narration, whiteboard)
+// ---------------------------------------------------------------------------
+
+async function handleSlide(action: string, rest: string[]) {
+  if (action !== "add") { console.error("用法: pawclass slide add <courseId> --title <标题> --content <markdown>"); process.exit(1); }
+  const { flags, positional } = parseArgs(rest);
+  const courseId = positional[0];
+  if (!courseId || !flags.title || !flags.content) {
+    console.error("用法: pawclass slide add <courseId> --title <标题> --content <markdown>");
+    process.exit(1);
+  }
+  const data = await api("POST", `/api/course/${courseId}/slide`, { title: flags.title, content: flags.content });
+  info("幻灯片已添加");
+  out(data);
+}
+
+async function handleCode(action: string, rest: string[]) {
+  if (action !== "add") { console.error("用法: pawclass code add <courseId> --language <lang> --content <code>"); process.exit(1); }
+  const { flags, positional } = parseArgs(rest);
+  const courseId = positional[0];
+  if (!courseId || !flags.language || !flags.content) {
+    console.error("用法: pawclass code add <courseId> --language <lang> --content <code>");
+    process.exit(1);
+  }
+  const data = await api("POST", `/api/course/${courseId}/code`, {
+    language: flags.language,
+    content: flags.content,
+    title: flags.title,
+  });
+  info("代码块已添加");
+  out(data);
+}
+
+async function handleQuiz(action: string, rest: string[]) {
+  if (action !== "add") { console.error("用法: pawclass quiz add <courseId> --question <问题> --options <A,B,C> --answer <index>"); process.exit(1); }
+  const { flags, positional } = parseArgs(rest);
+  const courseId = positional[0];
+  if (!courseId || !flags.question || !flags.options || flags.answer == null) {
+    console.error("用法: pawclass quiz add <courseId> --question <问题> --options <A,B,C> --answer <index>");
+    process.exit(1);
+  }
+  const options = flags.options.split(",").map((s) => s.trim());
+  const answer = parseInt(flags.answer, 10);
+  if (isNaN(answer)) { console.error("错误: --answer 必须是数字索引"); process.exit(1); }
+  const data = await api("POST", `/api/course/${courseId}/quiz`, { question: flags.question, options, answer });
+  info("测验已添加");
+  out(data);
+}
+
+async function handleInteractive(action: string, rest: string[]) {
+  if (action !== "add") { console.error("用法: pawclass interactive add <courseId> --type <type> [--language <lang>]"); process.exit(1); }
+  const { flags, positional } = parseArgs(rest);
+  const courseId = positional[0];
+  if (!courseId || !flags.type) {
+    console.error("用法: pawclass interactive add <courseId> --type <type> [--language <lang>]");
+    process.exit(1);
+  }
+  const data = await api("POST", `/api/course/${courseId}/interactive`, { type: flags.type, language: flags.language });
+  info("互动场景已添加");
+  out(data);
+}
+
+async function handleNarration(action: string, rest: string[]) {
+  if (action !== "add") { console.error("用法: pawclass narration add <courseId> --text <旁白文字>"); process.exit(1); }
+  const { flags, positional } = parseArgs(rest);
+  const courseId = positional[0];
+  if (!courseId || !flags.text) {
+    console.error("用法: pawclass narration add <courseId> --text <旁白文字>");
+    process.exit(1);
+  }
+  const data = await api("POST", `/api/course/${courseId}/narration`, { text: flags.text });
+  info("旁白已添加");
+  out(data);
+}
+
+async function handleWhiteboard(action: string, rest: string[]) {
+  if (action !== "add") { console.error("用法: pawclass whiteboard add <courseId> --type <text|shape|latex|line> --content <内容> --x <x> --y <y>"); process.exit(1); }
+  const { flags, positional } = parseArgs(rest);
+  const courseId = positional[0];
+  if (!courseId || !flags.type || flags.x == null || flags.y == null) {
+    console.error("用法: pawclass whiteboard add <courseId> --type <text|shape|latex|line> --x <x> --y <y> [--content <内容>] [--width <w>] [--height <h>] [--color <color>]");
+    process.exit(1);
+  }
+
+  const body: Record<string, unknown> = {
+    type: flags.type,
+    x: parseFloat(flags.x),
+    y: parseFloat(flags.y),
+  };
+  if (flags.content) body.content = flags.content;
+  if (flags.width) body.width = parseFloat(flags.width);
+  if (flags.height) body.height = parseFloat(flags.height);
+  if (flags.fontSize) body.fontSize = parseFloat(flags.fontSize);
+  if (flags.color) body.color = flags.color;
+  if (flags.shape) body.shape = flags.shape;
+
+  const data = await api("POST", `/api/course/${courseId}/whiteboard`, body);
+  info("白板元素已添加");
+  out(data);
+}
+
+// ---------------------------------------------------------------------------
+// Mistake commands (wrap existing /api/mistake endpoints)
+// ---------------------------------------------------------------------------
+
+async function handleMistake(action: string, rest: string[]) {
+  const { flags, positional } = parseArgs(rest);
+
+  switch (action) {
+    case "add": {
+      if (!flags.subject || !flags.problem) {
+        console.error("用法: pawclass mistake add --subject <科目> --problem <题目> [--answer <正确答案>] [--wrong <错误答案>] [--topic <知识点>]");
+        process.exit(1);
+      }
+      const body: Record<string, unknown> = {
+        subject: flags.subject,
+        problem_text: flags.problem,
+      };
+      if (flags.answer) body.correct_answer = flags.answer;
+      if (flags.wrong) body.wrong_answer = flags.wrong;
+      if (flags.topic) body.topic = flags.topic;
+      if (flags.difficulty) body.difficulty = parseInt(flags.difficulty, 10);
+      const data = await api("POST", "/api/mistake", body);
+      info("错题已添加");
+      out(data);
+      break;
+    }
+    case "list": {
+      const params = new URLSearchParams();
+      if (flags.subject) params.set("subject", flags.subject);
+      if (flags.topic) params.set("topic", flags.topic);
+      if (flags.limit) params.set("limit", flags.limit);
+      const qs = params.toString();
+      out(await api("GET", `/api/mistake${qs ? `?${qs}` : ""}`));
+      break;
+    }
+    case "master": {
+      const id = positional[0];
+      if (!id) { console.error("用法: pawclass mistake master <id>"); process.exit(1); }
+      const data = await api("POST", `/api/mistake/${id}/master`);
+      info("已标记掌握");
+      out(data);
+      break;
+    }
+    default:
+      console.error(`未知 mistake 子命令: ${action}`);
+      process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Help
+// ---------------------------------------------------------------------------
+
+function usage(): void {
+  console.log(`pawclass — Agent 内容创作工具
+
+课程管理:
+  pawclass course create --title <标题>                                   创建课程
+  pawclass course finalize <id>                                          定稿
+  pawclass course status <id>                                            查询状态
+  pawclass course play|pause|resume|stop <id>                            播放控制
+  pawclass course results <id>                                           测验结果
+
+内容添加:
+  pawclass slide add <id> --title <标题> --content <markdown>            幻灯片
+  pawclass code add <id> --language <lang> --content <代码> [--title <t>] 代码块
+  pawclass quiz add <id> --question <问题> --options <A,B,C> --answer <n> 测验
+  pawclass interactive add <id> --type <type> [--language <lang>]        互动场景
+  pawclass narration add <id> --text <旁白文字>                           旁白
+  pawclass whiteboard add <id> --type <text|shape|latex|line> --x --y    白板元素
+
+错题管理:
+  pawclass mistake add --subject <科目> --problem <题目> [--answer <答案>] 添加错题
+  pawclass mistake list [--subject <科目>] [--topic <知识点>]             列出错题
+  pawclass mistake master <id>                                           标记掌握
+  pawclass stats                                                         统计数据
+
+服务管理:
+  pawclass serve                                                         启动服务
+  pawclass migrate                                                       数据库迁移
+
+环境变量:
+  PAWCLASS_BASE_URL     服务地址 (默认 https://pawclass.teachclaw.app)
+  PAWCLASS_API_KEY      API 密钥 → X-API-Key header`);
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
 async function main() {
   const command = process.argv[2];
+  const subCommand = process.argv[3];
+  const rest = process.argv.slice(4);
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     usage();
     process.exit(0);
   }
 
-  if (command === "session") {
-    const subCommand = process.argv[3];
-    if (!subCommand) { console.error("用法: pawclass session <load|status|play|pause|resume|goto|stop|results>"); process.exit(1); }
-    await handleSession(subCommand, process.argv.slice(4));
-    return;
-  }
-
-  if (!DB_URL) {
-    console.error("错误: DATABASE_URL 未设置");
-    process.exit(1);
-  }
-
   switch (command) {
+    case "course":
+      if (!subCommand) { console.error("用法: pawclass course <create|finalize|status|play|pause|resume|stop|results>"); process.exit(1); }
+      await handleCourse(subCommand, rest);
+      break;
+
+    case "slide":
+      if (!subCommand) { console.error("用法: pawclass slide add <courseId> ..."); process.exit(1); }
+      await handleSlide(subCommand, rest);
+      break;
+
+    case "code":
+      if (!subCommand) { console.error("用法: pawclass code add <courseId> ..."); process.exit(1); }
+      await handleCode(subCommand, rest);
+      break;
+
+    case "quiz":
+      if (!subCommand) { console.error("用法: pawclass quiz add <courseId> ..."); process.exit(1); }
+      await handleQuiz(subCommand, rest);
+      break;
+
+    case "interactive":
+      if (!subCommand) { console.error("用法: pawclass interactive add <courseId> ..."); process.exit(1); }
+      await handleInteractive(subCommand, rest);
+      break;
+
+    case "narration":
+      if (!subCommand) { console.error("用法: pawclass narration add <courseId> ..."); process.exit(1); }
+      await handleNarration(subCommand, rest);
+      break;
+
+    case "whiteboard":
+      if (!subCommand) { console.error("用法: pawclass whiteboard add <courseId> ..."); process.exit(1); }
+      await handleWhiteboard(subCommand, rest);
+      break;
+
+    case "mistake":
+      if (!subCommand) { console.error("用法: pawclass mistake <add|list|master>"); process.exit(1); }
+      await handleMistake(subCommand, rest);
+      break;
+
+    case "stats":
+      out(await api("GET", "/api/stats"));
+      break;
+
     case "serve": {
+      const DB_URL = process.env.DATABASE_URL;
+      if (!DB_URL) { console.error("错误: DATABASE_URL 未设置"); process.exit(1); }
+      const { createDB } = await import("./db/connection.js");
+      const { startServer } = await import("./server.js");
       const db = createDB(DB_URL);
       startServer(db);
       break;
     }
+
     case "migrate": {
       const { runMigrations } = await import("./db/migrate.js");
       await runMigrations();
       break;
     }
+
     default:
       console.error(`未知命令: ${command}`);
       usage();

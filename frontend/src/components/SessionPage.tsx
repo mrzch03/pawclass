@@ -21,18 +21,46 @@ import { InteractiveRenderer } from "./InteractiveRenderer";
 
 interface SessionPageProps {
   sessionId: string;
+  mode?: "session" | "course";
 }
 
-export function SessionPage({ sessionId }: SessionPageProps) {
+export function SessionPage({ sessionId, mode = "session" }: SessionPageProps) {
   const status = usePlaybackStore((s) => s.status);
   const currentStep = usePlaybackStore((s) => s.currentStepIndex);
   const totalSteps = usePlaybackStore((s) => s.totalSteps);
   const generatingProgress = usePlaybackStore((s) => s.generatingProgress);
   const generatingMessage = usePlaybackStore((s) => s.generatingMessage);
   const currentScene = useStageStore((s) => s.currentScene);
-  const { requestHelp, exitSession } = usePlayback(sessionId);
+  const scenes = useStageStore((s) => s.scenes);
+  const { requestHelp, exitSession } = usePlayback(sessionId, mode);
 
-  // Generating state
+  // Course draft state — building indicator with live scene count
+  if (mode === "course" && (status === "idle" || status as string === "draft")) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-50">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+          <div className="h-8 w-8 animate-pulse rounded-full bg-blue-500" />
+        </div>
+        <p className="text-lg font-semibold text-slate-700">
+          课程构建中...
+        </p>
+        <p className="text-sm text-slate-500">
+          已添加 {scenes.length} 个场景
+        </p>
+        {scenes.length > 0 && (
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            {scenes.map((s: any, i: number) => (
+              <span key={i} className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700">
+                {i + 1}. {s.title || s.type}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Generating state (session mode)
   if (status === "idle" || status === "generating") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-50">

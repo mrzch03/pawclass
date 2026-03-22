@@ -9,7 +9,7 @@ import { useCanvasStore } from "../store/canvas-store";
 
 const API_BASE = "";
 
-export function usePlayback(sessionId: string | null) {
+export function usePlayback(sessionId: string | null, mode: "session" | "course" = "session") {
   const eventSourceRef = useRef<EventSource | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const actionQueueRef = useRef<any[]>([]);
@@ -22,6 +22,8 @@ export function usePlayback(sessionId: string | null) {
 
   const setScenes = useStageStore((s) => s.setScenes);
   const setCurrentSceneIndex = useStageStore((s) => s.setCurrentSceneIndex);
+  const addScene = useStageStore((s) => s.addScene);
+  const addActionToScene = useStageStore((s) => s.addActionToScene);
   const setWhiteboardOpen = useStageStore((s) => s.setWhiteboardOpen);
   const addWhiteboardElement = useStageStore((s) => s.addWhiteboardElement);
   const removeWhiteboardElement = useStageStore((s) => s.removeWhiteboardElement);
@@ -103,10 +105,13 @@ export function usePlayback(sessionId: string | null) {
 
       // Report step complete
       if (playingRef.current) {
-        await fetch(`${API_BASE}/api/session/${sessionId}/step-complete`, {
+        const stepCompletePath = mode === "course"
+          ? `${API_BASE}/api/course/${sessionId}/step-complete`
+          : `${API_BASE}/api/session/${sessionId}/step-complete`;
+        await fetch(stepCompletePath, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stepIndex: scene.order - 1 }),
+          body: JSON.stringify({ stepIndex: scene.stepIndex ?? (scene.order - 1) }),
         });
       }
     },
@@ -117,7 +122,10 @@ export function usePlayback(sessionId: string | null) {
   useEffect(() => {
     if (!sessionId) return;
 
-    const es = new EventSource(`${API_BASE}/api/session/${sessionId}/stream`);
+    const streamPath = mode === "course"
+      ? `${API_BASE}/api/course/${sessionId}/stream`
+      : `${API_BASE}/api/session/${sessionId}/stream`;
+    const es = new EventSource(streamPath);
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
@@ -128,6 +136,10 @@ export function usePlayback(sessionId: string | null) {
           setStatus(data.status);
           setCurrentStep(data.currentStepIndex);
           setTotalSteps(data.totalSteps);
+          // Course init includes existing scenes
+          if (data.scenes?.length) {
+            setScenes(data.scenes);
+          }
           break;
 
         case "play":
@@ -175,6 +187,20 @@ export function usePlayback(sessionId: string | null) {
           setStatus("generating");
           setGeneratingProgress(data.progress, data.message);
           break;
+
+        // Course progressive loading events
+        case "scene_added":
+          addScene(data.scene);
+          setTotalSteps(data.totalScenes);
+          break;
+
+        case "action_added":
+          addActionToScene(data.sceneIndex, data.action);
+          break;
+
+        case "course_finalized":
+          setTotalSteps(data.totalScenes);
+          break;
       }
     };
 
@@ -187,7 +213,7 @@ export function usePlayback(sessionId: string | null) {
       playingRef.current = false;
       audioRef.current?.pause();
     };
-  }, [sessionId]);
+  }, [sessionId, mode]);
 
   // Imperative controls
   const requestHelp = useCallback(async () => {

@@ -6,9 +6,10 @@
  */
 
 import { sessionStore } from "../session-store.js";
+import { courseStore } from "../course-store.js";
 import { assertTransition } from "../session-types.js";
 import type { EventEmitter } from "../events/event-emitter.js";
-import type { QuizResult, Scene } from "../types.js";
+import type { QuizResult, Scene, Session, Course } from "../types.js";
 
 export type SSEEvent =
   | { type: "play"; stepIndex: number; scene: Scene }
@@ -18,7 +19,11 @@ export type SSEEvent =
   | { type: "step_complete"; stepIndex: number }
   | { type: "session_complete" }
   | { type: "session_ended" }
-  | { type: "generating_progress"; progress: number; message: string };
+  | { type: "generating_progress"; progress: number; message: string }
+  // Course-specific events (progressive loading)
+  | { type: "scene_added"; sceneIndex: number; scene: Scene; totalScenes: number }
+  | { type: "action_added"; sceneIndex: number; actionId: string; action: unknown }
+  | { type: "course_finalized"; totalScenes: number };
 
 type SSEListener = (event: SSEEvent) => void;
 
@@ -56,53 +61,70 @@ export class ServerPlaybackEngine {
     }
   }
 
-  /** Start playback from current step */
-  play(sessionId: string) {
-    const session = sessionStore.get(sessionId);
-    if (!session) throw new Error("Session not found");
+  /** Look up a session or course by ID */
+  private lookup(id: string): { scenes: Scene[]; currentStepIndex: number; setCurrentStep: (idx: number) => void } | null {
+    const session = sessionStore.get(id);
+    if (session) return {
+      scenes: session.scenes,
+      currentStepIndex: session.currentStepIndex,
+      setCurrentStep: (idx) => sessionStore.setCurrentStep(id, idx),
+    };
+    const course = courseStore.get(id);
+    if (course) return {
+      scenes: course.scenes,
+      currentStepIndex: course.currentStepIndex,
+      setCurrentStep: (idx) => courseStore.setCurrentStep(id, idx),
+    };
+    return null;
+  }
 
-    const scene = session.scenes[session.currentStepIndex];
+  /** Start playback from current step */
+  play(id: string) {
+    const data = this.lookup(id);
+    if (!data) throw new Error("Session/course not found");
+
+    const scene = data.scenes[data.currentStepIndex];
     if (!scene) throw new Error("No scene at current step");
 
-    this.broadcast(sessionId, {
+    this.broadcast(id, {
       type: "play",
-      stepIndex: session.currentStepIndex,
+      stepIndex: data.currentStepIndex,
       scene,
     });
   }
 
   /** Pause playback */
-  pause(sessionId: string) {
-    this.broadcast(sessionId, { type: "pause" });
+  pause(id: string) {
+    this.broadcast(id, { type: "pause" });
   }
 
   /** Resume playback from current step */
-  resume(sessionId: string) {
-    const session = sessionStore.get(sessionId);
-    if (!session) throw new Error("Session not found");
+  resume(id: string) {
+    const data = this.lookup(id);
+    if (!data) throw new Error("Session/course not found");
 
-    const scene = session.scenes[session.currentStepIndex];
+    const scene = data.scenes[data.currentStepIndex];
     if (!scene) throw new Error("No scene at current step");
 
-    this.broadcast(sessionId, {
+    this.broadcast(id, {
       type: "resume",
-      stepIndex: session.currentStepIndex,
+      stepIndex: data.currentStepIndex,
       scene,
     });
   }
 
   /** Jump to a specific step */
-  gotoStep(sessionId: string, stepIndex: number) {
-    const session = sessionStore.get(sessionId);
-    if (!session) throw new Error("Session not found");
-    if (stepIndex < 0 || stepIndex >= session.scenes.length) {
+  gotoStep(id: string, stepIndex: number) {
+    const data = this.lookup(id);
+    if (!data) throw new Error("Session/course not found");
+    if (stepIndex < 0 || stepIndex >= data.scenes.length) {
       throw new Error("Invalid step index");
     }
 
-    sessionStore.setCurrentStep(sessionId, stepIndex);
-    const scene = session.scenes[stepIndex];
+    data.setCurrentStep(stepIndex);
+    const scene = data.scenes[stepIndex];
 
-    this.broadcast(sessionId, { type: "goto", stepIndex, scene });
+    this.broadcast(id, { type: "goto", stepIndex, scene });
   }
 
   /** Stop session */
@@ -111,39 +133,47 @@ export class ServerPlaybackEngine {
   }
 
   /** Frontend reports step completion → auto-advance to next step */
-  async onStepComplete(sessionId: string, stepIndex: number) {
-    const session = sessionStore.get(sessionId);
-    if (!session) return;
+  async onStepComplete(id: string, stepIndex: number) {
+    // Try session first, then course
+    const session = sessionStore.get(id);
+    const course = !session ? courseStore.get(id) : undefined;
+    const entity = session || course;
+    if (!entity) return;
 
-    this.broadcast(sessionId, { type: "step_complete", stepIndex });
+    this.broadcast(id, { type: "step_complete", stepIndex });
 
     // Emit event notification
     await this.eventEmitter?.emit({
       type: "step_complete",
-      sessionId,
+      sessionId: id,
       stepIndex,
-      summary: `第${stepIndex + 1}步完成: ${session.scenes[stepIndex]?.title || ""}`,
+      summary: `第${stepIndex + 1}步完成: ${entity.scenes[stepIndex]?.title || ""}`,
     });
 
     // Auto-advance to next step
     const nextStep = stepIndex + 1;
-    if (nextStep < session.scenes.length) {
-      sessionStore.setCurrentStep(sessionId, nextStep);
-      const scene = session.scenes[nextStep];
-      this.broadcast(sessionId, { type: "play", stepIndex: nextStep, scene });
+    if (nextStep < entity.scenes.length) {
+      if (session) sessionStore.setCurrentStep(id, nextStep);
+      else courseStore.setCurrentStep(id, nextStep);
+      const scene = entity.scenes[nextStep];
+      this.broadcast(id, { type: "play", stepIndex: nextStep, scene });
     } else {
       // All steps complete
-      assertTransition(session.status, "completed");
-      sessionStore.updateStatus(sessionId, "completed");
-      this.broadcast(sessionId, { type: "session_complete" });
+      if (session) {
+        assertTransition(session.status, "completed");
+        sessionStore.updateStatus(id, "completed");
+      } else if (course) {
+        courseStore.updateStatus(id, "completed");
+      }
+      this.broadcast(id, { type: "session_complete" });
 
       await this.eventEmitter?.emit({
         type: "session_end",
-        sessionId,
-        summary: `教学完成，共${session.scenes.length}步`,
+        sessionId: id,
+        summary: `教学完成，共${entity.scenes.length}步`,
         data: {
-          totalSteps: session.scenes.length,
-          quizResults: session.quizResults,
+          totalSteps: entity.scenes.length,
+          quizResults: entity.quizResults,
         },
       });
     }

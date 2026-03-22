@@ -80,6 +80,28 @@ export interface QuizAnswer {
   correct: boolean;
 }
 
+// --- Course ---
+
+export type CourseStatus =
+  | "draft"
+  | "finalized"
+  | "playing"
+  | "paused"
+  | "completed"
+  | "ended";
+
+export interface Course {
+  id: string;
+  title: string;
+  status: CourseStatus;
+  currentStepIndex: number;
+  scenes: Scene[];
+  quizResults: QuizResult[];
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
+}
+
 // --- Session Events ---
 
 export type SessionEventType =
