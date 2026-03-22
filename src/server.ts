@@ -90,9 +90,12 @@ export function createServer(db: DB): Hono {
 
   app.route("/api/session", sessionRouter);
 
-  // --- Course public routes (no auth — accessed by browser) ---
-  // Must be registered BEFORE the authenticated courseApp to avoid auth interception
-  app.get("/api/course/:id/stream", (c) => {
+  // --- Course routes ---
+  const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
+  const courseApp = new Hono<{ Variables: AuthVariables }>();
+
+  // Public routes (no auth — accessed by browser)
+  courseApp.get("/:id/stream", (c) => {
     const courseId = c.req.param("id");
     const course = courseStore.get(courseId);
     if (!course) return c.json({ error: "course not found" }, 404);
@@ -118,24 +121,21 @@ export function createServer(db: DB): Hono {
       await new Promise(() => {});
     });
   });
-
-  // Course step-complete + quiz-submit endpoints (public — called by frontend)
-  app.post("/api/course/:id/step-complete", async (c) => {
+  courseApp.post("/:id/step-complete", async (c) => {
     const body = await c.req.json<{ stepIndex: number }>();
     await engine.onStepComplete(c.req.param("id"), body.stepIndex);
     return c.json({ ok: true });
   });
-  app.post("/api/course/:id/quiz-submit", async (c) => {
+  courseApp.post("/:id/quiz-submit", async (c) => {
     const body = await c.req.json<{ stepIndex: number; result: QuizResult }>();
     await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
     return c.json({ ok: true });
   });
 
-  // --- Course authenticated routes (Bearer auth — called by CLI) ---
-  const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
-  const courseApp = new Hono<{ Variables: AuthVariables }>();
+  // Authenticated routes (Bearer auth — called by CLI)
   courseApp.use("/*", authMiddleware);
   courseApp.route("/", createCourseRoutes({ engine, baseUrl }));
+
   app.route("/api/course", courseApp);
 
   // Course frontend page
