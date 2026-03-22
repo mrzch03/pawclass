@@ -4,14 +4,24 @@ import type { AuthVariables } from "./types.js";
 
 const JWT_SECRET = process.env.MISTAKES_JWT_SECRET || "";
 const LOGTO_ISSUER = process.env.LOGTO_ISSUER || "";
-const API_KEY = process.env.PAWCLASS_API_KEY || "";
-const API_KEY_USER_ID = process.env.PAWCLASS_USER_ID || "default";
+
+/**
+ * Verify a JWT token and return the payload. Shared by all auth modes.
+ */
+async function verifyToken(token: string): Promise<JWTPayload> {
+  if (!JWT_SECRET) {
+    throw new Error("Server misconfigured: MISTAKES_JWT_SECRET not set");
+  }
+  const secret = new TextEncoder().encode(JWT_SECRET);
+  const { payload } = await jwtVerify(token, secret);
+  return payload;
+}
 
 /**
  * Auth middleware that extracts user identity from the request.
  *
  * Supports three auth modes:
- * 1. **API Key** (CLI/Agent): X-API-Key header → verify against PAWCLASS_API_KEY env
+ * 1. **X-API-Key** (CLI/Agent): OAuth access_token as API key — verify JWT signature
  * 2. **Logto JWT** (browser): Verify JWT from Authorization header, extract `sub` as userId
  * 3. **Delegation token** (CLI/Agent): Verify JWT, check `type: "delegation"` claim, extract `sub` as userId
  *
@@ -19,21 +29,22 @@ const API_KEY_USER_ID = process.env.PAWCLASS_USER_ID || "default";
  */
 export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
-    // Mode 1: API Key authentication
+    // Mode 1: X-API-Key — the value is an OAuth access_token (JWT), verify signature
     const apiKey = c.req.header("X-API-Key");
     if (apiKey) {
-      if (!API_KEY) {
-        return c.json({ error: "Server misconfigured: PAWCLASS_API_KEY not set" }, 500);
+      try {
+        const payload = await verifyToken(apiKey);
+        const userId = extractUserId(payload) || "api-key-user";
+        c.set("userId", userId);
+        await next();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "API key verification failed";
+        return c.json({ error: `Unauthorized: ${message}` }, 401);
       }
-      if (apiKey !== API_KEY) {
-        return c.json({ error: "Unauthorized: invalid API key" }, 401);
-      }
-      c.set("userId", API_KEY_USER_ID);
-      await next();
       return;
     }
 
-    // Mode 2 & 3: JWT authentication
+    // Mode 2 & 3: Bearer JWT authentication
     const authHeader = c.req.header("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return c.json({ error: "Unauthorized: missing or invalid Authorization header" }, 401);
@@ -41,13 +52,8 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
 
     const token = authHeader.slice(7);
 
-    if (!JWT_SECRET) {
-      return c.json({ error: "Server misconfigured: MISTAKES_JWT_SECRET not set" }, 500);
-    }
-
     try {
-      const secret = new TextEncoder().encode(JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret);
+      const payload = await verifyToken(token);
 
       const userId = extractUserId(payload);
       if (!userId) {
@@ -71,7 +77,8 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
 );
 
 /**
- * Standalone API key middleware — for routes that only accept API key auth.
+ * Standalone API key middleware — for routes that only accept X-API-Key.
+ * The value is an OAuth access_token (JWT), verified by signature.
  */
 export const apiKeyMiddleware = createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
@@ -79,14 +86,15 @@ export const apiKeyMiddleware = createMiddleware<{ Variables: AuthVariables }>(
     if (!apiKey) {
       return c.json({ error: "Unauthorized: missing X-API-Key header" }, 401);
     }
-    if (!API_KEY) {
-      return c.json({ error: "Server misconfigured: PAWCLASS_API_KEY not set" }, 500);
+    try {
+      const payload = await verifyToken(apiKey);
+      const userId = extractUserId(payload) || "api-key-user";
+      c.set("userId", userId);
+      await next();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "API key verification failed";
+      return c.json({ error: `Unauthorized: ${message}` }, 401);
     }
-    if (apiKey !== API_KEY) {
-      return c.json({ error: "Unauthorized: invalid API key" }, 401);
-    }
-    c.set("userId", API_KEY_USER_ID);
-    await next();
   }
 );
 
