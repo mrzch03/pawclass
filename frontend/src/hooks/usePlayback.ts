@@ -94,13 +94,25 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
   // Execute all actions for a scene sequentially
   const executeSceneActions = useCallback(
     async (scene: any, sessionId: string) => {
-      if (!scene.actions) return;
       playingRef.current = true;
       clearEffects();
 
-      for (const action of scene.actions) {
-        if (!playingRef.current) break;
-        await executeAction(action, sessionId);
+      // Execute actions if any
+      if (scene.actions?.length > 0) {
+        for (const action of scene.actions) {
+          if (!playingRef.current) break;
+          await executeAction(action, sessionId);
+        }
+      }
+
+      // Quiz and interactive scenes: don't auto-advance, wait for user interaction
+      if (scene.type === "quiz" || scene.type === "interactive") {
+        return;
+      }
+
+      // Slides with no actions: give user time to read (min 5 seconds)
+      if (!scene.actions?.length) {
+        await delay(5000);
       }
 
       // Report step complete
