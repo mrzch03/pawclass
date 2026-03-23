@@ -387,5 +387,16 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
     return c.json({ ok: true });
   });
 
+  // POST /api/course/:id/replay — reset course to finalized + step 0
+  app.post("/:id/replay", (c) => {
+    const course = courseStore.get(c.req.param("id"));
+    if (!course) return c.json({ error: "course not found" }, 404);
+
+    courseStore.updateStatus(course.id, "finalized");
+    courseStore.setCurrentStep(course.id, 0);
+
+    return c.json({ id: course.id, status: "finalized", currentStepIndex: 0 });
+  });
+
   return app;
 }

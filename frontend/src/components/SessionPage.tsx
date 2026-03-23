@@ -85,6 +85,13 @@ export function SessionPage({ sessionId, mode = "session" }: SessionPageProps) {
 
   // Completed/ended state
   if (status === "completed" || status === "ended") {
+    const handleReplay = async () => {
+      const base = mode === "course" ? `/api/course/${sessionId}/replay` : "";
+      if (!base) return;
+      await fetch(base, { method: "POST" });
+      window.location.reload();
+    };
+
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-50">
         <span className="text-5xl">🎉</span>
@@ -92,6 +99,14 @@ export function SessionPage({ sessionId, mode = "session" }: SessionPageProps) {
         <p className="text-sm text-slate-500">
           共完成 {totalSteps} 个步骤
         </p>
+        {mode === "course" && (
+          <button
+            onClick={handleReplay}
+            className="mt-2 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            重新开始
+          </button>
+        )}
       </div>
     );
   }
@@ -182,7 +197,10 @@ export function SessionPage({ sessionId, mode = "session" }: SessionPageProps) {
         </button>
         <button
           onClick={() => {
-            fetch(`/api/session/${sessionId}/step-complete`, {
+            const base = mode === "course"
+              ? `/api/course/${sessionId}/step-complete`
+              : `/api/session/${sessionId}/step-complete`;
+            fetch(base, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ stepIndex: currentStep }),
