@@ -90,49 +90,8 @@ export function createServer(db: DB): Hono {
 
   app.route("/api/session", sessionRouter);
 
-  // --- Course routes ---
+  // --- Course routes (public + authenticated, all in one sub-app) ---
   const baseUrl = process.env.PAWCLASS_BASE_URL || `http://localhost:${process.env.PAWCLASS_PORT || "9801"}`;
-
-  // Public course endpoints (no auth — accessed by browser)
-  app.get("/api/course/:id/stream", (c) => {
-    const courseId = c.req.param("id");
-    const course = courseStore.get(courseId);
-    if (!course) return c.json({ error: "course not found" }, 404);
-
-    return stream(c, async (s) => {
-      c.header("Content-Type", "text/event-stream");
-      c.header("Cache-Control", "no-cache");
-      c.header("Connection", "keep-alive");
-
-      const unsubscribe = engine.subscribe(courseId, (event) => {
-        try { s.write(`data: ${JSON.stringify(event)}\n\n`); } catch {}
-      });
-
-      s.write(`data: ${JSON.stringify({
-        type: "init",
-        status: course.status,
-        currentStepIndex: course.currentStepIndex,
-        totalSteps: course.scenes.length,
-        scenes: course.scenes,
-      })}\n\n`);
-
-      s.onAbort(() => unsubscribe());
-      await new Promise(() => {});
-    });
-  });
-  app.post("/api/course/:id/step-complete", async (c) => {
-    const body = await c.req.json<{ stepIndex: number }>();
-    await engine.onStepComplete(c.req.param("id"), body.stepIndex);
-    return c.json({ ok: true });
-  });
-  app.post("/api/course/:id/quiz-submit", async (c) => {
-    const body = await c.req.json<{ stepIndex: number; result: QuizResult }>();
-    await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
-    return c.json({ ok: true });
-  });
-
-  // Authenticated course endpoints (Bearer auth — called by CLI)
-  // Pass authMiddleware to createCourseRoutes so it applies per-route
   app.route("/api/course", createCourseRoutes({ engine, baseUrl, authMiddleware }));
 
   // Course frontend page

@@ -6,6 +6,7 @@
  */
 
 import { Hono } from "hono";
+import { stream } from "hono/streaming";
 import { nanoid } from "nanoid";
 import { courseStore } from "../stage/course-store.js";
 import { assertCourseTransition, canAddContent } from "../stage/course-types.js";
@@ -340,6 +341,50 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
     });
 
     return c.json({ sceneIndex: result.sceneIndex, actionId: result.actionId });
+  });
+
+  // -----------------------------------------------------------------------
+  // Public endpoints (no auth — accessed by browser)
+  // -----------------------------------------------------------------------
+
+  // SSE streaming
+  app.get("/:id/stream", (c) => {
+    const courseId = c.req.param("id");
+    const course = courseStore.get(courseId);
+    if (!course) return c.json({ error: "course not found" }, 404);
+
+    return stream(c, async (s) => {
+      c.header("Content-Type", "text/event-stream");
+      c.header("Cache-Control", "no-cache");
+      c.header("Connection", "keep-alive");
+
+      const unsubscribe = engine.subscribe(courseId, (event) => {
+        try { s.write(`data: ${JSON.stringify(event)}\n\n`); } catch {}
+      });
+
+      s.write(`data: ${JSON.stringify({
+        type: "init",
+        status: course.status,
+        currentStepIndex: course.currentStepIndex,
+        totalSteps: course.scenes.length,
+        scenes: course.scenes,
+      })}\n\n`);
+
+      s.onAbort(() => unsubscribe());
+      await new Promise(() => {});
+    });
+  });
+
+  app.post("/:id/step-complete", async (c) => {
+    const body = await c.req.json<{ stepIndex: number }>();
+    await engine.onStepComplete(c.req.param("id"), body.stepIndex);
+    return c.json({ ok: true });
+  });
+
+  app.post("/:id/quiz-submit", async (c) => {
+    const body = await c.req.json<{ stepIndex: number; result: any }>();
+    await engine.onQuizSubmit(c.req.param("id"), body.stepIndex, body.result);
+    return c.json({ ok: true });
   });
 
   return app;
