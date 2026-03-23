@@ -17,24 +17,22 @@ import {
   buildNarrationAction,
   buildWhiteboardAction,
 } from "../stage/course-builder.js";
-import { authMiddleware } from "../auth/middleware.js";
 import type { ServerPlaybackEngine } from "../stage/playback/server-engine.js";
 import type { AuthVariables } from "../auth/types.js";
+import type { MiddlewareHandler } from "hono";
 
 export interface CourseRouterDeps {
   engine: ServerPlaybackEngine;
   baseUrl: string;
+  authMiddleware: MiddlewareHandler;
 }
 
 export function createCourseRoutes(deps: CourseRouterDeps) {
-  const { engine, baseUrl } = deps;
+  const { engine, baseUrl, authMiddleware: auth } = deps;
   const app = new Hono<{ Variables: AuthVariables }>();
 
-  // All routes in this file require Bearer auth
-  app.use("/*", authMiddleware);
-
-  // POST /api/course — create a new empty course
-  app.post("/", async (c) => {
+  // POST /api/course — create a new empty course (auth required)
+  app.post("/", auth, async (c) => {
     const body = await c.req.json<{ title: string }>();
     if (!body.title) {
       return c.json({ error: "title is required" }, 400);
@@ -51,7 +49,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // GET /api/course/:id — query course state
-  app.get("/:id", (c) => {
+  app.get("/:id", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     return c.json({
@@ -67,7 +65,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/finalize — mark course as finalized
-  app.post("/:id/finalize", (c) => {
+  app.post("/:id/finalize", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
 
@@ -87,7 +85,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/play
-  app.post("/:id/play", (c) => {
+  app.post("/:id/play", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (course.scenes.length === 0) {
@@ -107,7 +105,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/pause
-  app.post("/:id/pause", (c) => {
+  app.post("/:id/pause", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
 
@@ -124,7 +122,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/resume
-  app.post("/:id/resume", (c) => {
+  app.post("/:id/resume", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
 
@@ -141,7 +139,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/stop
-  app.post("/:id/stop", (c) => {
+  app.post("/:id/stop", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
 
@@ -158,7 +156,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // GET /api/course/:id/results — quiz results
-  app.get("/:id/results", (c) => {
+  app.get("/:id/results", auth, (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     return c.json({
@@ -173,7 +171,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   // -----------------------------------------------------------------------
 
   // POST /api/course/:id/slide — add a slide scene
-  app.post("/:id/slide", async (c) => {
+  app.post("/:id/slide", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (!canAddContent(course.status)) {
@@ -199,7 +197,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/code — add a code scene
-  app.post("/:id/code", async (c) => {
+  app.post("/:id/code", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (!canAddContent(course.status)) {
@@ -225,7 +223,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/quiz — add a quiz scene
-  app.post("/:id/quiz", async (c) => {
+  app.post("/:id/quiz", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (!canAddContent(course.status)) {
@@ -251,7 +249,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/interactive — add an interactive scene
-  app.post("/:id/interactive", async (c) => {
+  app.post("/:id/interactive", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (!canAddContent(course.status)) {
@@ -277,7 +275,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/narration — add narration to last scene
-  app.post("/:id/narration", async (c) => {
+  app.post("/:id/narration", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (!canAddContent(course.status)) {
@@ -306,7 +304,7 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
   });
 
   // POST /api/course/:id/whiteboard — add whiteboard action to last scene
-  app.post("/:id/whiteboard", async (c) => {
+  app.post("/:id/whiteboard", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
     if (!canAddContent(course.status)) {

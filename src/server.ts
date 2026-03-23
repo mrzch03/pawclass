@@ -132,8 +132,8 @@ export function createServer(db: DB): Hono {
   });
 
   // Authenticated course endpoints (Bearer auth — called by CLI)
-  // createCourseRoutes applies authMiddleware internally
-  app.route("/api/course", createCourseRoutes({ engine, baseUrl }));
+  // Pass authMiddleware to createCourseRoutes so it applies per-route
+  app.route("/api/course", createCourseRoutes({ engine, baseUrl, authMiddleware }));
 
   // Course frontend page
   app.get("/course/:id", (c) => {
