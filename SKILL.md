@@ -40,26 +40,26 @@ https://pawclass.teachclaw.app/course/crs_xxx
 
 学生打开链接后会看到"课程构建中"的提示，随着你添加内容，场景会实时出现。
 
-### 第 2 步：边聊天边添加内容
+### 第 2 步：边聊天边添加内容（每个场景配讲解词）
 
-学生已经在课堂里了，你开始逐步添加场景。每添加一个，学生端实时可见。
+学生已经在课堂里了，你开始逐步添加场景。**每个场景都要配 narration（讲解词）**，播放时会自动朗读。
 
 ```bash
-# 先加一个介绍
+# 场景 1：介绍 + 讲解词
 pawclass slide add crs_xxx --title "什么是一元二次方程" --content "# 标准形式\nax² + bx + c = 0\n\n其中 a ≠ 0"
+pawclass narration add crs_xxx --text "同学们好，今天我们来学习一元二次方程。它的标准形式是 ax² + bx + c = 0，其中 a 不等于 0。这是初中数学最重要的内容之一。"
 
-# 加代码演示
+# 场景 2：代码演示 + 讲解词
 pawclass code add crs_xxx --language python --content "import math\n\ndef solve(a, b, c):\n    d = b**2 - 4*a*c\n    x1 = (-b + math.sqrt(d)) / (2*a)\n    x2 = (-b - math.sqrt(d)) / (2*a)\n    return x1, x2\n\nprint(solve(1, -5, 6))"
+pawclass narration add crs_xxx --text "这段代码用 Python 实现了求根公式。你可以看到，先算判别式 d，然后分别算两个根 x1 和 x2。"
 
-# 加测验检查理解
+# 场景 3：测验（不需要 narration，等学生答题）
 pawclass quiz add crs_xxx --question "x²-4x+4=0 的判别式等于多少？" --options "16,0,8,-8" --answer 1
 ```
 
 同时在聊天里跟学生说话：
 ```
-我刚加了第一页，讲的是标准形式。你先看看，有问题随时问我。
-
-代码演示也加好了，你可以看看 Python 怎么用求根公式。
+课件在加载中，我给你准备了讲解和代码演示。跟着来，有不懂的随时问我。
 ```
 
 ### 第 3 步：定稿 → 开始播放
