@@ -48,17 +48,15 @@ export function createServer(db: DB): Hono {
   const mistakeRepo = createMistakeRepo(db);
   const reviewRepo = createReviewRepo(db);
 
-  // --- Authenticated API routes ---
-  const apiApp = new Hono<{ Variables: AuthVariables }>();
-  apiApp.use("/*", authMiddleware);
-
-  // Mistakes CRUD + review
-  apiApp.route("/", createApiRoutes({ mistakeRepo, reviewRepo }));
-
-  // Teaching outline generation
-  apiApp.route("/teaching", createTeachingRoutes({ mistakeRepo }));
-
-  app.route("/api", apiApp);
+  // --- Authenticated API routes (mistakes + teaching) ---
+  // Auth applied to specific prefixes to avoid catching /api/course and /api/session
+  app.use("/api/mistake/*", authMiddleware);
+  app.use("/api/mistake", authMiddleware);
+  app.use("/api/review/*", authMiddleware);
+  app.use("/api/stats", authMiddleware);
+  app.use("/api/teaching/*", authMiddleware);
+  app.route("/api", createApiRoutes({ mistakeRepo, reviewRepo }));
+  app.route("/api/teaching", createTeachingRoutes({ mistakeRepo }));
 
   // --- Stage session routes (public, accessed by CLI with session IDs) ---
   const eventEmitter = process.env.CLAWBOX_BACKEND_URL
