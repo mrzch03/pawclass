@@ -2,18 +2,30 @@
  * InteractiveRenderer — renders interactive HTML content in an iframe.
  */
 
+import { useEffect, useMemo } from "react";
+
 interface InteractiveRendererProps {
   html?: string;
   url?: string;
 }
 
 export function InteractiveRenderer({ html, url }: InteractiveRendererProps) {
-  if (html) {
-    // Patch HTML for min-height compatibility
+  const blobUrl = useMemo(() => {
+    if (!html) return null;
     const patchedHtml = html.replace(/min-h-screen/g, "min-h-full");
     const blob = new Blob([patchedHtml], { type: "text/html" });
-    const blobUrl = URL.createObjectURL(blob);
+    return URL.createObjectURL(blob);
+  }, [html]);
 
+  useEffect(() => {
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [blobUrl]);
+
+  if (blobUrl) {
     return (
       <iframe
         src={blobUrl}

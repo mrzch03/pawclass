@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --stage-ink: #111827;
+  --stage-muted: #5b6472;
+  --stage-paper: rgba(255, 252, 246, 0.9);
+  --stage-line: rgba(148, 163, 184, 0.28);
+  --stage-warm: #d97706;
+  --stage-accent: #e11d48;
+  --stage-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--stage-ink);
+  font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(251, 191, 36, 0.18), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(244, 63, 94, 0.12), transparent 24%),
+    linear-gradient(140deg, #f7f2e7 0%, #f3efe8 42%, #edf2f7 100%);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -11,4 +38,173 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes spinHalo {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.font-display {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  letter-spacing: -0.03em;
+}
+
+.stage-shell {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.3), transparent 55%);
+}
+
+.stage-shell::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 28px;
+  pointer-events: none;
+}
+
+.stage-panel {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: var(--stage-paper);
+  box-shadow: var(--stage-shadow);
+  backdrop-filter: blur(24px);
+}
+
+.stage-orb {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.15) 38%, rgba(217, 119, 6, 0.24)),
+    linear-gradient(135deg, rgba(251, 191, 36, 0.26), rgba(244, 63, 94, 0.14));
+  box-shadow: 0 18px 40px rgba(217, 119, 6, 0.18);
+}
+
+.stage-spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: 3px solid rgba(148, 163, 184, 0.25);
+  border-top-color: var(--stage-warm);
+  animation: spinHalo 0.9s linear infinite;
+  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+.stage-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 10px 18px;
+  color: #334155;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.stage-action-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(217, 119, 6, 0.45);
+  background: rgba(255, 251, 235, 0.96);
+}
+
+.quiz-card {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.markdown-content {
+  color: inherit;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  margin: 0 0 0.65em;
+  font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.markdown-content h1 {
+  font-size: 1.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.05rem;
+}
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre {
+  margin: 0;
+}
+
+.markdown-content > * + * {
+  margin-top: 0.75em;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.2em;
+}
+
+.markdown-content li + li {
+  margin-top: 0.3em;
+}
+
+.markdown-content a {
+  color: #9a3412;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+
+.markdown-content code {
+  border-radius: 0.4rem;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 0.1rem 0.35rem;
+  font-family: "SFMono-Regular", "Consolas", monospace;
+  font-size: 0.92em;
+}
+
+.markdown-content pre {
+  overflow-x: auto;
+  border-radius: 1rem;
+  background: #111827;
+  padding: 1rem 1.1rem;
+  color: #f8fafc;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid rgba(217, 119, 6, 0.55);
+  padding-left: 1rem;
+  color: var(--stage-muted);
+}
+
+.markdown-content hr {
+  border: 0;
+  border-top: 1px solid var(--stage-line);
 }

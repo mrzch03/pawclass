@@ -18,6 +18,7 @@ import {
   buildNarrationAction,
   buildWhiteboardAction,
 } from "../stage/course-builder.js";
+import { generateTTSForScenes } from "../stage/tts/tts-generator.js";
 import type { ServerPlaybackEngine } from "../stage/playback/server-engine.js";
 import type { AuthVariables } from "../auth/types.js";
 import type { MiddlewareHandler } from "hono";
@@ -65,8 +66,8 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
     });
   });
 
-  // POST /api/course/:id/finalize — mark course as finalized
-  app.post("/:id/finalize", auth, (c) => {
+  // POST /api/course/:id/finalize — mark course as finalized, generate TTS
+  app.post("/:id/finalize", auth, async (c) => {
     const course = courseStore.get(c.req.param("id"));
     if (!course) return c.json({ error: "course not found" }, 404);
 
@@ -77,12 +78,24 @@ export function createCourseRoutes(deps: CourseRouterDeps) {
     }
 
     courseStore.updateStatus(course.id, "finalized");
+
+    // Generate TTS audio for all speech actions (non-blocking for the response)
+    const ttsCount = await generateTTSForScenes(course.id, course.scenes).catch((e) => {
+      console.error(`[course] TTS generation failed for ${course.id}:`, e);
+      return 0;
+    });
+
     engine.broadcast(course.id, {
       type: "course_finalized",
       totalScenes: course.scenes.length,
     });
 
-    return c.json({ id: course.id, status: "finalized", sceneCount: course.scenes.length });
+    return c.json({
+      id: course.id,
+      status: "finalized",
+      sceneCount: course.scenes.length,
+      ttsGenerated: ttsCount,
+    });
   });
 
   // POST /api/course/:id/play

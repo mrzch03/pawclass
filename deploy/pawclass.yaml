@@ -1,0 +1,112 @@
+---
+# PVC for knowledge-base shared storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pawclass-knowledge-base
+  namespace: clawbox
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pawclass
+  namespace: clawbox
+  labels:
+    app: pawclass
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pawclass
+  template:
+    metadata:
+      labels:
+        app: pawclass
+    spec:
+      containers:
+        - name: pawclass
+          image: ghcr.io/mrzch03/pawclass:latest
+          ports:
+            - containerPort: 9801
+          env:
+            - name: PAWCLASS_PORT
+              value: "9801"
+            - name: DATABASE_URL
+              value: "postgresql://clawbox:clawbox@postgres.clawbox.svc.cluster.local:5432/pawclass"
+            - name: MISTAKES_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pawclass-secrets
+                  key: jwt-secret
+            - name: KNOWLEDGE_BASE_PATH
+              value: "/data/knowledge-base"
+          volumeMounts:
+            - name: knowledge-base
+              mountPath: /data/knowledge-base
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9801
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9801
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: knowledge-base
+          persistentVolumeClaim:
+            claimName: pawclass-knowledge-base
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: pawclass
+  namespace: clawbox
+spec:
+  selector:
+    app: pawclass
+  ports:
+    - port: 9801
+      targetPort: 9801
+
+---
+# IngressRoute — Traefik routing for pawclass.teachclaw.app
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: pawclass-route
+  namespace: clawbox
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`pawclass.teachclaw.app`)
+      services:
+        - name: pawclass
+          port: 9801
+
+---
+# Secret (create separately with actual values)
+# kubectl create secret generic pawclass-secrets -n clawbox \
+#   --from-literal=jwt-secret=<your-jwt-secret>

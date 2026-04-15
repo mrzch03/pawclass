@@ -19,6 +19,7 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
   const setCurrentStep = usePlaybackStore((s) => s.setCurrentStep);
   const setTotalSteps = usePlaybackStore((s) => s.setTotalSteps);
   const setGeneratingProgress = usePlaybackStore((s) => s.setGeneratingProgress);
+  const setSpeechText = usePlaybackStore((s) => s.setSpeechText);
 
   const setScenes = useStageStore((s) => s.setScenes);
   const setCurrentSceneIndex = useStageStore((s) => s.setCurrentSceneIndex);
@@ -33,25 +34,46 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
   const setLaser = useCanvasStore((s) => s.setLaser);
   const clearEffects = useCanvasStore((s) => s.clearEffects);
 
+  /** Build the correct audio URL based on mode */
+  const getAudioUrl = useCallback(
+    (actionId: string) => {
+      const prefix = mode === "course" ? "course" : "session";
+      return `${API_BASE}/api/${prefix}/${sessionId}/audio/${actionId}`;
+    },
+    [mode, sessionId],
+  );
+
   // Execute a single action
   const executeAction = useCallback(
-    async (action: any, sessionId: string) => {
+    async (action: any) => {
       switch (action.type) {
         case "speech": {
-          // Play TTS audio
-          const audioUrl = `${API_BASE}/api/session/${sessionId}/audio/${action.id}`;
+          // Show narration subtitle
+          setSpeechText(action.text || "");
+
+          // Try to play TTS audio
+          const audioUrl = getAudioUrl(action.id);
           return new Promise<void>((resolve) => {
             const audio = new Audio(audioUrl);
             audioRef.current = audio;
-            audio.onended = () => resolve();
+            audio.onended = () => {
+              setSpeechText("");
+              resolve();
+            };
             audio.onerror = () => {
-              // Fallback: estimate duration from text
-              const duration = action.text.length * 100; // ~100ms per char
-              setTimeout(resolve, Math.min(duration, 10000));
+              // No TTS audio available — show subtitle for estimated reading time
+              const duration = action.text.length * 150; // ~150ms per CJK char
+              setTimeout(() => {
+                setSpeechText("");
+                resolve();
+              }, Math.max(duration, 2000));
             };
             audio.play().catch(() => {
-              const duration = action.text.length * 100;
-              setTimeout(resolve, Math.min(duration, 10000));
+              const duration = action.text.length * 150;
+              setTimeout(() => {
+                setSpeechText("");
+                resolve();
+              }, Math.max(duration, 2000));
             });
           });
         }
@@ -88,7 +110,7 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
           break;
       }
     },
-    [setSpotlight, setLaser, setWhiteboardOpen, addWhiteboardElement, removeWhiteboardElement, clearWhiteboard],
+    [getAudioUrl, setSpeechText, setSpotlight, setLaser, setWhiteboardOpen, addWhiteboardElement, removeWhiteboardElement, clearWhiteboard],
   );
 
   // Execute all actions for a scene sequentially
@@ -96,12 +118,13 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
     async (scene: any, sessionId: string) => {
       playingRef.current = true;
       clearEffects();
+      setSpeechText("");
 
       // Execute actions if any
       if (scene.actions?.length > 0) {
         for (const action of scene.actions) {
           if (!playingRef.current) break;
-          await executeAction(action, sessionId);
+          await executeAction(action);
         }
       }
 
@@ -127,7 +150,7 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
         });
       }
     },
-    [executeAction, clearEffects],
+    [executeAction, clearEffects, setSpeechText],
   );
 
   // Connect SSE
@@ -152,6 +175,11 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
           if (data.scenes?.length) {
             setScenes(data.scenes);
           }
+          // Auto-start finalized courses that haven't begun playing
+          if (mode === "course" && data.status === "finalized" && data.totalSteps > 0) {
+            fetch(`${API_BASE}/api/course/${sessionId}/play`, { method: "POST" })
+              .catch((err) => console.error("[sse] Auto-play failed:", err));
+          }
           break;
 
         case "play":
@@ -165,6 +193,7 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
           setStatus("paused");
           playingRef.current = false;
           audioRef.current?.pause();
+          setSpeechText("");
           break;
 
         case "resume":
@@ -188,11 +217,13 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
         case "session_complete":
           setStatus("completed");
           playingRef.current = false;
+          setSpeechText("");
           break;
 
         case "session_ended":
           setStatus("ended");
           playingRef.current = false;
+          setSpeechText("");
           break;
 
         case "generating_progress":
@@ -212,6 +243,11 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
 
         case "course_finalized":
           setTotalSteps(data.totalScenes);
+          // Auto-start playback after finalization
+          if (mode === "course") {
+            fetch(`${API_BASE}/api/course/${sessionId}/play`, { method: "POST" })
+              .catch((err) => console.error("[sse] Auto-play failed:", err));
+          }
           break;
       }
     };
@@ -242,6 +278,7 @@ export function usePlayback(sessionId: string | null, mode: "session" | "course"
     if (!sessionId) return;
     playingRef.current = false;
     audioRef.current?.pause();
+    setSpeechText("");
     await fetch(`${API_BASE}/api/session/${sessionId}/student-exit`, {
       method: "POST",
     });

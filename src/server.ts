@@ -10,6 +10,13 @@ import { createTeachingRoutes } from "./routes/teaching.js";
 import { createOAuthRoutes } from "./routes/oauth.js";
 import { createCliDistRoutes } from "./routes/cli-dist.js";
 import { createCourseRoutes } from "./routes/course.js";
+import { createKnowledgeRoutes } from "./routes/knowledge.js";
+import { createLearnerRoutes } from "./routes/learner.js";
+import { createPracticeRoutes } from "./routes/practice.js";
+import { createPlanRoutes } from "./routes/plan.js";
+import { createTeacherRoutes } from "./routes/teacher.js";
+import { createDirectiveRoutes } from "./routes/directive.js";
+import { KnowledgeService } from "./knowledge/knowledge-service.js";
 import { createSessionRouter } from "./stage/session-router.js";
 import { sessionStore } from "./stage/session-store.js";
 import { courseStore, initCourseStore } from "./stage/course-store.js";
@@ -38,11 +45,36 @@ export function createServer(db: DB): Hono {
   // Health check (public, no auth)
   app.get("/healthz", (c) => c.json({ status: "ok", app: "pawclass" }));
 
+  // Local dev login (public, signs a JWT with role)
+  app.post("/api/auth/login", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const username = body?.username || "student";
+    const role = body?.role || "student"; // "student" | "teacher" | "agent"
+    const students = body?.students || []; // teacher: their student list
+    const studentId = body?.studentId;     // agent: target student
+    const secret = process.env.MISTAKES_JWT_SECRET;
+    if (!secret) return c.json({ error: "JWT secret not configured" }, 500);
+    const { SignJWT } = await import("jose");
+    const claims: Record<string, unknown> = { sub: username, role };
+    if (role === "teacher" && students.length) claims.students = students;
+    if (role === "agent" && studentId) claims.studentId = studentId;
+    const token = await new SignJWT(claims)
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("30d")
+      .sign(new TextEncoder().encode(secret));
+    return c.json({ token, userId: username, role });
+  });
+
   // --- Public OAuth2 Provider routes (no auth) ---
   app.route("/oauth", createOAuthRoutes());
 
   // --- Public CLI distribution routes (no auth) ---
   app.route("/cli", createCliDistRoutes());
+
+  // Knowledge service (reads knowledge-base files from disk)
+  const kbPath = process.env.KNOWLEDGE_BASE_PATH || "/data/knowledge-base";
+  const kb = new KnowledgeService(kbPath);
 
   // Repos
   const mistakeRepo = createMistakeRepo(db);
@@ -57,6 +89,32 @@ export function createServer(db: DB): Hono {
   app.use("/api/teaching/*", authMiddleware);
   app.route("/api", createApiRoutes({ mistakeRepo, reviewRepo }));
   app.route("/api/teaching", createTeachingRoutes({ mistakeRepo }));
+
+  // --- Learning system error handler ---
+  app.onError((err, c) => {
+    if (err.name === "AuthorizationError") {
+      return c.json({ error: err.message }, 403);
+    }
+    console.error(`[pawclass] ${err.name}: ${err.message}`);
+    return c.json({ error: "Internal Server Error" }, 500);
+  });
+
+  // --- Learning system routes ---
+  app.route("/api/kb", createKnowledgeRoutes(kb));
+  app.use("/api/learner/*", authMiddleware);
+  app.route("/api/learner", createLearnerRoutes(db));
+  app.use("/api/practice/*", authMiddleware);
+  app.use("/api/practice", authMiddleware);
+  app.route("/api/practice", createPracticeRoutes(db, kb));
+  app.use("/api/plan/*", authMiddleware);
+  app.use("/api/plan", authMiddleware);
+  app.route("/api/plan", createPlanRoutes(db, kb));
+  app.use("/api/teacher/*", authMiddleware);
+  app.use("/api/teacher", authMiddleware);
+  app.route("/api/teacher", createTeacherRoutes(db, kb));
+  app.use("/api/directive/*", authMiddleware);
+  app.use("/api/directive", authMiddleware);
+  app.route("/api/directive", createDirectiveRoutes(db));
 
   // --- Stage session routes (public, accessed by CLI with session IDs) ---
   const eventEmitter = process.env.CLAWBOX_BACKEND_URL
@@ -150,8 +208,16 @@ export function createServer(db: DB): Hono {
     return c.json({ ok: true });
   });
 
-  // Audio serving
+  // Audio serving (session + course share the same file-based storage)
   app.get("/api/session/:id/audio/:actionId", (c) => {
+    const { id, actionId } = c.req.param();
+    const audioPath = getAudioPath(id, actionId);
+    if (!existsSync(audioPath)) return c.json({ error: "audio not found" }, 404);
+    return new Response(readFileSync(audioPath), {
+      headers: { "Content-Type": "audio/mpeg", "Cache-Control": "public, max-age=86400" },
+    });
+  });
+  app.get("/api/course/:id/audio/:actionId", (c) => {
     const { id, actionId } = c.req.param();
     const audioPath = getAudioPath(id, actionId);
     if (!existsSync(audioPath)) return c.json({ error: "audio not found" }, 404);
@@ -173,9 +239,44 @@ export function createServer(db: DB): Hono {
   // Serve frontend SPA static files (Vite build output → frontend/dist/)
   app.use("/frontend/*", serveStatic({ root: "./frontend/dist", rewriteRequestPath: (path) => path.replace(/^\/frontend/, "") }));
 
-  // Web UI routes (mistakes management pages)
+  // Learning system routes (served from React frontend)
+  app.get("/dashboard", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/learn", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/practice/:id", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/concepts", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/concepts/:id", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/plan", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/teacher", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+  app.get("/teacher/*", (c) => {
+    if (!frontendHtml) return c.text("Frontend not built", 500);
+    return c.html(frontendHtml);
+  });
+
+  // Web UI routes (legacy mistakes management pages)
   app.get("/", (c) => c.html(getIndexHtml()));
-  app.get("/dashboard", (c) => c.html(getDashboardHtml()));
+  app.get("/mistakes", (c) => c.html(getIndexHtml()));
+  app.get("/mistakes/dashboard", (c) => c.html(getDashboardHtml()));
   app.get("/review", (c) => c.html(getReviewHtml()));
 
   return app;

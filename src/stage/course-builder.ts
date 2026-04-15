@@ -159,8 +159,8 @@ export function buildQuizScene(opts: {
 }): Scene {
   const questionId = nanoid();
   const quizOptions: QuizOption[] = opts.options.map((text, i) => ({
-    label: String.fromCharCode(65 + i), // A, B, C, ...
-    value: text,
+    value: String.fromCharCode(65 + i), // A, B, C, ...
+    label: text,
   }));
 
   const question: QuizQuestion = {
@@ -168,7 +168,7 @@ export function buildQuizScene(opts: {
     type: "single",
     question: opts.question,
     options: quizOptions,
-    answer: [String(opts.answer)],
+    answer: [String.fromCharCode(65 + opts.answer)],
     hasAnswer: true,
     points: 1,
   };

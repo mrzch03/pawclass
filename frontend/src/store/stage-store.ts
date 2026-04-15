@@ -3,18 +3,19 @@
  */
 
 import { create } from "zustand";
+import type { Scene } from "../types/stage";
 
 export interface StageState {
-  scenes: any[];
+  scenes: Scene[];
   currentSceneIndex: number;
-  currentScene: any | null;
+  currentScene: Scene | null;
   whiteboardElements: any[];
   isWhiteboardOpen: boolean;
 
-  setScenes: (scenes: any[]) => void;
+  setScenes: (scenes: Scene[]) => void;
   setCurrentSceneIndex: (index: number) => void;
   /** Append a new scene (progressive course loading) */
-  addScene: (scene: any) => void;
+  addScene: (scene: Scene) => void;
   /** Append an action to a specific scene (progressive course loading) */
   addActionToScene: (sceneIndex: number, action: any) => void;
   setWhiteboardElements: (elements: any[]) => void;
@@ -71,7 +72,7 @@ export const useStageStore = create<StageState>((set, get) => ({
   removeWhiteboardElement: (elementId) =>
     set((state) => ({
       whiteboardElements: state.whiteboardElements.filter(
-        (el: any) => el.id !== elementId,
+        (el) => el.id !== elementId,
       ),
     })),
 

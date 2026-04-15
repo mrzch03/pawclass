@@ -29,7 +29,12 @@ export interface DelegationJwtPayload {
 /** Union type for all supported JWT payloads */
 export type JwtPayload = LogtoJwtPayload | DelegationJwtPayload;
 
+export type Role = "student" | "teacher" | "agent";
+
 /** Hono context variables set by auth middleware */
 export interface AuthVariables {
   userId: string;
+  role: Role;
+  students?: string[];   // teacher: list of student IDs they can access
+  studentId?: string;    // agent: the student they're acting on behalf of
 }

@@ -107,6 +107,13 @@ async function handleCourse(action: string, rest: string[]) {
     case "play": {
       const id = positional[0];
       if (!id) { console.error("用法: pawclass course play <id>"); process.exit(1); }
+      // Auto-finalize if still in draft
+      const courseInfo = await api("GET", `/api/course/${id}`) as any;
+      if (courseInfo.status === "draft") {
+        info("课程尚未定稿，自动定稿中...");
+        const finResult = await api("POST", `/api/course/${id}/finalize`) as any;
+        info(`定稿完成，生成 ${finResult.ttsGenerated || 0} 个语音文件`);
+      }
       const data = await api("POST", `/api/course/${id}/play`);
       info("开始播放");
       out(data);
@@ -340,6 +347,110 @@ function usage(): void {
 // Main
 // ---------------------------------------------------------------------------
 
+// --- Learning system commands ---
+
+async function handleLearner(action: string, rest: string[]) {
+  const { flags } = parseArgs(rest);
+  const course = flags.course || "middle/grade7-up/english";
+
+  switch (action) {
+    case "profile":
+      out(await api("GET", `/api/learner/profile?course=${course}`));
+      break;
+    case "mastery": {
+      const concept = flags.concept ? `&concept=${flags.concept}` : "";
+      out(await api("GET", `/api/learner/mastery?course=${course}${concept}`));
+      break;
+    }
+    case "due": {
+      const limit = flags.limit || "10";
+      out(await api("GET", `/api/learner/due?course=${course}&limit=${limit}`));
+      break;
+    }
+    case "stats":
+      out(await api("GET", `/api/learner/stats?course=${course}`));
+      break;
+    default:
+      console.error("用法: pawclass learner <profile|mastery|due|stats>");
+      process.exit(1);
+  }
+}
+
+async function handlePractice(action: string, rest: string[]) {
+  const { flags } = parseArgs(rest);
+
+  switch (action) {
+    case "create": {
+      const course = flags.course || "middle/grade7-up/english";
+      const mode = flags.mode || "practice";
+      const concepts = flags.concepts ? flags.concepts.split(",") : undefined;
+      const count = flags.count ? parseInt(flags.count) : 10;
+      out(await api("POST", "/api/practice", { courseId: course, mode, concepts, count }));
+      break;
+    }
+    case "status": {
+      const id = rest.find(a => !a.startsWith("--")) || flags.id;
+      if (!id) { console.error("用法: pawclass practice status <id>"); process.exit(1); }
+      out(await api("GET", `/api/practice/${id}`));
+      break;
+    }
+    case "results": {
+      const id = rest.find(a => !a.startsWith("--")) || flags.id;
+      if (!id) { console.error("用法: pawclass practice results <id>"); process.exit(1); }
+      out(await api("GET", `/api/practice/${id}/results`));
+      break;
+    }
+    default:
+      console.error("用法: pawclass practice <create|status|results>");
+      process.exit(1);
+  }
+}
+
+async function handlePlan(action: string, rest: string[]) {
+  const { flags } = parseArgs(rest);
+  const course = flags.course || "middle/grade7-up/english";
+
+  switch (action) {
+    case "today":
+      out(await api("GET", `/api/plan/today?course=${course}`));
+      break;
+    case "create": {
+      const tasks = flags.tasks ? JSON.parse(flags.tasks) : [];
+      const date = flags.date;
+      const totalMinutes = flags.minutes ? parseInt(flags.minutes) : undefined;
+      out(await api("POST", "/api/plan", { courseId: course, tasks, date, totalMinutes }));
+      break;
+    }
+    default:
+      console.error("用法: pawclass plan <today|create>");
+      process.exit(1);
+  }
+}
+
+async function handleKb(action: string, rest: string[]) {
+  const { flags } = parseArgs(rest);
+  const course = flags.course || "middle/grade7-up/english";
+
+  switch (action) {
+    case "concepts":
+      out(await api("GET", `/api/kb/${course}/concepts`));
+      break;
+    case "exercises": {
+      const concept = flags.concept;
+      if (!concept) { console.error("用法: pawclass kb exercises --concept <id>"); process.exit(1); }
+      const limit = flags.limit || "10";
+      out(await api("GET", `/api/kb/${course}/exercises/${concept}?limit=${limit}`));
+      break;
+    }
+    case "syllabus":
+      out(await api("GET", `/api/kb/${course}/syllabus`));
+      break;
+    default:
+      console.error("用法: pawclass kb <concepts|exercises|syllabus>");
+      process.exit(1);
+  }
+}
+
 async function main() {
   const command = process.argv[2];
   const subCommand = process.argv[3];
@@ -389,6 +500,26 @@ async function main() {
     case "mistake":
       if (!subCommand) { console.error("用法: pawclass mistake <add|list|master>"); process.exit(1); }
       await handleMistake(subCommand, rest);
+      break;
+
+    case "learner":
+      if (!subCommand) { console.error("用法: pawclass learner <profile|mastery|due|stats>"); process.exit(1); }
+      await handleLearner(subCommand, rest);
+      break;
+
+    case "practice":
+      if (!subCommand) { console.error("用法: pawclass practice <create|status|results>"); process.exit(1); }
+      await handlePractice(subCommand, rest);
+      break;
+
+    case "plan":
+      if (!subCommand) { console.error("用法: pawclass plan <today|create>"); process.exit(1); }
+      await handlePlan(subCommand, rest);
+      break;
+
+    case "kb":
+      if (!subCommand) { console.error("用法: pawclass kb <concepts|exercises|syllabus>"); process.exit(1); }
+      await handleKb(subCommand, rest);
       break;
 
     case "stats":

@@ -119,3 +119,125 @@ pawclass course results crs_xxx
 
 **错误**：直接发 `https://pawclass.teachclaw.app/course/crs_abc123`（前端不会打开课堂面板）
 **正确**：`[clawbox-pawclass:crs_abc123](https://pawclass.teachclaw.app/course/crs_abc123)`（前端自动打开）
+
+---
+
+# 学习系统 — 你是学习伙伴
+
+除了上课，你还能帮助学生日常练习和复习。
+
+## 了解学生状态
+
+```bash
+# 学生画像：掌握度、准确率、薄弱点
+pawclass learner profile
+
+# 各知识点掌握详情
+pawclass learner mastery
+
+# 待复习的知识点（按优先级排序）
+pawclass learner due --limit 10
+
+# 近7天练习统计
+pawclass learner stats
+```
+
+## 制定学习计划
+
+```bash
+# 查看今天的计划（没有则自动生成）
+pawclass plan today
+
+# 自己制定计划（根据学生状态定制）
+pawclass plan create --course middle/grade7-up/english --tasks '[
+  {"type":"review","conceptIds":["be-verb","articles"],"mode":"review","count":10,"minutes":15,"status":"pending","description":"复习 be动词和冠词"},
+  {"type":"practice","conceptIds":["simple-present-tense"],"mode":"practice","count":8,"minutes":15,"status":"pending","description":"强化 一般现在时"},
+  {"type":"new","conceptIds":["modal-verbs"],"mode":"practice","count":5,"minutes":10,"status":"pending","description":"学习新知识点: 情态动词"}
+]'
+```
+
+## 创建练习
+
+```bash
+# 创建复习练习（自动选待复习知识点）
+pawclass practice create --mode review
+
+# 针对特定知识点练习
+pawclass practice create --concepts be-verb,noun-plural --count 10
+
+# 查看练习结果
+pawclass practice results <sessionId>
+```
+
+## 浏览知识库
+
+```bash
+# 查看有哪些知识点
+pawclass kb concepts
+
+# 查看某知识点的题目
+pawclass kb exercises --concept noun-possessive --limit 5
+
+# 查看课程大纲
+pawclass kb syllabus
+```
+
+## 学习辅导流程
+
+### 每日学习（Agent 主动发起）
+
+1. 读取学生状态：`pawclass learner profile` + `pawclass learner due`
+2. 结合 .learner/ 记忆判断今天练什么
+3. 制定计划：`pawclass plan create --tasks [...]`
+4. 发消息给学生：
+
+```
+早上好！今天的学习计划已经准备好了：
+- 复习 be 动词（昨天错了3道）
+- 强化一般现在时
+- 学习新知识点：情态动词
+
+[clawbox-pawclass:plan](https://pawclass.teachclaw.app/plan)
+
+点击上面的卡片开始今天的学习吧！
+```
+
+### 练习后跟进
+
+1. 学生完成练习后，读取结果：`pawclass practice results <id>`
+2. 根据结果鼓励或建议：
+
+```
+做得不错！名词复数的准确率从60%提升到了80%！
+不过 be 动词还需要加强，明天我们继续练习这部分。
+```
+
+### 考前突击
+
+1. 读取所有薄弱知识点：`pawclass learner due --limit 20`
+2. 创建密集练习：`pawclass practice create --concepts weak1,weak2,weak3 --count 20`
+3. 配合课件讲解难点：`pawclass course create` + `pawclass slide add`
+
+## 学习系统 app link
+
+```
+[clawbox-pawclass:dashboard](https://pawclass.teachclaw.app/dashboard)
+[clawbox-pawclass:plan](https://pawclass.teachclaw.app/plan)
+[clawbox-pawclass:concepts](https://pawclass.teachclaw.app/concepts)
+[clawbox-pawclass:prs_xxx](https://pawclass.teachclaw.app/practice/prs_xxx)
+```
+
+## 学习系统命令速查
+
+| 命令 | 作用 |
+|------|------|
+| `pawclass learner profile` | 学生画像 |
+| `pawclass learner mastery` | 知识点掌握度 |
+| `pawclass learner due` | 待复习知识点 |
+| `pawclass plan today` | 今日计划 |
+| `pawclass plan create --tasks <json>` | 制定计划 |
+| `pawclass practice create --mode review` | 创建复习练习 |
+| `pawclass practice create --concepts a,b` | 创建专项练习 |
+| `pawclass practice results <id>` | 练习结果 |
+| `pawclass kb concepts` | 知识点列表 |
+| `pawclass kb exercises --concept <id>` | 题目列表 |

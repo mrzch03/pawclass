@@ -89,17 +89,17 @@ describe("测验场景构建", () => {
   it("应设置正确答案", () => {
     const scene = buildQuizScene({ question: "问题", options: ["A", "B", "C"], answer: 2 });
     const q = (scene.content as any).questions[0];
-    expect(q.answer).toEqual(["2"]);
+    expect(q.answer).toEqual(["C"]);
     expect(q.hasAnswer).toBe(true);
   });
 
-  it("应生成 A/B/C 选项标签", () => {
+  it("应生成 A/B/C 选项标识符和文本标签", () => {
     const scene = buildQuizScene({ question: "问题", options: ["选项1", "选项2", "选项3"], answer: 0 });
     const q = (scene.content as any).questions[0];
-    expect(q.options[0].label).toBe("A");
-    expect(q.options[1].label).toBe("B");
-    expect(q.options[2].label).toBe("C");
-    expect(q.options[0].value).toBe("选项1");
+    expect(q.options[0].value).toBe("A");
+    expect(q.options[1].value).toBe("B");
+    expect(q.options[2].value).toBe("C");
+    expect(q.options[0].label).toBe("选项1");
   });
 
   it("应截断过长的标题", () => {

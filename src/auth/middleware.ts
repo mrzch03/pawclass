@@ -1,18 +1,19 @@
 import { createMiddleware } from "hono/factory";
 import { jwtVerify, type JWTPayload } from "jose";
-import type { AuthVariables } from "./types.js";
+import type { AuthVariables, Role } from "./types.js";
 
 const JWT_SECRET = process.env.MISTAKES_JWT_SECRET || "";
 const LOGTO_ISSUER = process.env.LOGTO_ISSUER || "";
 
 /**
- * Auth middleware that extracts user identity from the request.
+ * Auth middleware — extracts user identity and role from JWT.
  *
- * Supports two auth modes (all via Authorization: Bearer header):
- * 1. **Logto JWT** (browser): Verify JWT, extract `sub` as userId
- * 2. **OAuth/Delegation token** (CLI/Agent): Verify JWT signature, extract `sub` as userId
+ * Supports:
+ * 1. Logto JWT (browser): sub as userId, role from claim
+ * 2. Delegation JWT (CLI/Agent): sub as userId, role/studentId from claims
+ * 3. Local dev JWT: sub as userId, role from claim
  *
- * Sets `c.var.userId` for downstream handlers.
+ * Sets: c.var.userId, c.var.role, c.var.students, c.var.studentId
  */
 export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
@@ -44,6 +45,10 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
       }
 
       c.set("userId", userId);
+      c.set("role", extractRole(payload));
+      c.set("students", extractStudents(payload));
+      c.set("studentId", extractStudentId(payload));
+
       await next();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Token verification failed";
@@ -57,6 +62,27 @@ function extractUserId(payload: JWTPayload): string | null {
     return payload.sub;
   }
   return null;
+}
+
+function extractRole(payload: JWTPayload): Role {
+  const p = payload as Record<string, unknown>;
+  if (p.role === "teacher" || p.role === "agent" || p.role === "student") {
+    return p.role as Role;
+  }
+  if (isDelegationToken(payload)) return "agent";
+  return "student";
+}
+
+function extractStudents(payload: JWTPayload): string[] | undefined {
+  const p = payload as Record<string, unknown>;
+  if (Array.isArray(p.students)) return p.students as string[];
+  return undefined;
+}
+
+function extractStudentId(payload: JWTPayload): string | undefined {
+  const p = payload as Record<string, unknown>;
+  if (typeof p.studentId === "string") return p.studentId;
+  return undefined;
 }
 
 function isDelegationToken(payload: JWTPayload): boolean {

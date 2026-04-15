@@ -1,0 +1,21 @@
+node_modules
+frontend/node_modules
+frontend/dist
+.env
+.git
+*.md
+!README.md
+!SKILL.md
+
+# Data refinery - only keep knowledge-base output
+projects/data-refinery/raw
+projects/data-refinery/staging
+projects/data-refinery/logs
+projects/data-refinery/tools
+projects/data-refinery/workbench
+projects/data-refinery/web
+
+# Test files
+test.pdf
+test_*.md
+.DS_Store
