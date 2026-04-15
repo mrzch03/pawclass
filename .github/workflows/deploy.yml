@@ -1,0 +1,59 @@
+name: Build & Deploy PawClass
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: mrzch03/pawclass
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to K8s
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.K8S_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # Pull new image on the node where pod runs
+            kubectl rollout restart deployment/pawclass -n clawbox
+            kubectl rollout status deployment/pawclass -n clawbox --timeout=120s
+
+            # Sync knowledge-base from GitHub
+            POD=$(kubectl get pod -n clawbox -l app=pawclass -o jsonpath='{.items[0].metadata.name}')
+            kubectl exec -n clawbox $POD -- sh -c '
+              cd /data/knowledge-base &&
+              if [ -d .git ]; then
+                git pull origin main
+              else
+                git clone https://${{ secrets.KB_GITHUB_TOKEN }}@github.com/mrzch03/teachclaw-kb.git . ||
+                git clone https://github.com/mrzch03/teachclaw-kb.git .
+              fi
+            ' || echo "KB sync skipped (will use existing data)"
