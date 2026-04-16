@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { authFetch } from "../lib/auth";
-
-const API = "";
+import { API_BASE as API } from "../lib/config";
 
 export function StudentDetail({ studentId }: { studentId: string }) {
   const [profile, setProfile] = useState<any>(null);

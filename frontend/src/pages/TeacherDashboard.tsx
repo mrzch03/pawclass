@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { authFetch, getUser, clearAuth } from "../lib/auth";
+import { API_BASE as API } from "../lib/config";
 
 
 interface StudentOverview {

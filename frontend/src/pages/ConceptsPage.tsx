@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../lib/auth";
 import type { ConceptSummary, ConceptMastery } from "../types/learning";
 
-import { DEFAULT_COURSE_ID as COURSE_ID } from "../lib/config";
+import { DEFAULT_COURSE_ID as COURSE_ID, API_BASE as API } from "../lib/config";
 
 interface SyllabusUnit {
   key: string;

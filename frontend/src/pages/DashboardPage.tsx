@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { authFetch, getUser, clearAuth } from "../lib/auth";
 import type { LearnerProfile, DailyPlan, ConceptSummary } from "../types/learning";
 
-import { DEFAULT_COURSE_ID as COURSE_ID } from "../lib/config";
+import { DEFAULT_COURSE_ID as COURSE_ID, API_BASE as API } from "../lib/config";
 
 export function DashboardPage() {
   const [profile, setProfile] = useState<LearnerProfile | null>(null);
