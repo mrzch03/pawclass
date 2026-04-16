@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { setClerkToken } from "../lib/auth";
 
@@ -9,10 +9,14 @@ import { setClerkToken } from "../lib/auth";
 export function useClerkAuth() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { user } = useUser();
+  const [tokenReady, setTokenReady] = useState(false);
 
   useEffect(() => {
+    if (!isLoaded) return;
+
     if (!isSignedIn || !getToken) {
       setClerkToken(null);
+      setTokenReady(true);
       return;
     }
 
@@ -20,7 +24,10 @@ export function useClerkAuth() {
     async function syncToken() {
       if (cancelled) return;
       const token = await getToken();
-      if (!cancelled) setClerkToken(token);
+      if (!cancelled) {
+        setClerkToken(token);
+        setTokenReady(true);
+      }
     }
 
     syncToken();
@@ -30,11 +37,12 @@ export function useClerkAuth() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn, isLoaded, getToken]);
 
   return {
     isSignedIn: isSignedIn || false,
     isLoaded: isLoaded || false,
+    tokenReady,
     userId: user?.id || null,
     userName: user?.firstName || user?.username || null,
   };

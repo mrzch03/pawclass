@@ -25,9 +25,9 @@ export default function App() {
 
 /** Clerk-authenticated app (production) */
 function ClerkApp() {
-  const { isSignedIn, isLoaded } = useClerkAuth();
+  const { isSignedIn, isLoaded, tokenReady } = useClerkAuth();
 
-  if (!isLoaded) {
+  if (!isLoaded || (isSignedIn && !tokenReady)) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />

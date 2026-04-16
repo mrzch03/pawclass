@@ -12,9 +12,9 @@ export function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      authFetch(`${API}/api/learner/profile?course=${COURSE_ID}`).then((r) => r.json()),
-      authFetch(`${API}/api/plan/today?course=${COURSE_ID}`).then((r) => r.json()),
-      fetch(`${API}/api/kb/concepts`).then((r) => r.json()),
+      authFetch(`${API}/api/learner/profile?course=${COURSE_ID}`).then((r) => r.ok ? r.json() : null),
+      authFetch(`${API}/api/plan/today?course=${COURSE_ID}`).then((r) => r.ok ? r.json() : null),
+      fetch(`${API}/api/kb/concepts`).then((r) => r.ok ? r.json() : []),
     ]).then(([p, pl, c]) => {
       setProfile(p);
       setPlan(pl);
