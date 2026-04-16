@@ -126,7 +126,7 @@ export class KnowledgeService {
 
     return fs
       .readdirSync(conceptsDir)
-      .filter((f) => f.endsWith(".md"))
+      .filter((f) => f.endsWith(".md") && !f.startsWith("._"))
       .sort()
       .map((f) => {
         const id = f.replace(".md", "");
@@ -186,7 +186,7 @@ export class KnowledgeService {
 
     let exercises: Exercise[] = fs
       .readdirSync(dir)
-      .filter((f) => f.endsWith(".json") && f !== "index.json")
+      .filter((f) => f.endsWith(".json") && f !== "index.json" && !f.startsWith("._"))
       .sort()
       .map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf-8")));
 
@@ -233,7 +233,7 @@ export class KnowledgeService {
     if (!fs.existsSync(assetsDir)) return [];
 
     const results: Asset[] = [];
-    const files = fs.readdirSync(assetsDir).filter((f) => f.endsWith(".json"));
+    const files = fs.readdirSync(assetsDir).filter((f) => f.endsWith(".json") && !f.startsWith("._"));
 
     for (const file of files) {
       if (unit && !file.includes(slugify(unit))) continue;
