@@ -44,6 +44,13 @@ function parseArgs(args: string[]): { flags: Record<string, string>; positional:
 // API client
 // ---------------------------------------------------------------------------
 
+function requireToken() {
+  if (!TOKEN) {
+    console.error("错误: PAWCLASS_TOKEN 未设置。请设置环境变量后重试。");
+    process.exit(1);
+  }
+}
+
 function apiHeaders(body?: unknown): Record<string, string> {
   const h: Record<string, string> = {};
   if (TOKEN) h["Authorization"] = `Bearer ${TOKEN}`;

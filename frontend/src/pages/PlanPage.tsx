@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../lib/auth";
 import type { DailyPlan } from "../types/learning";
 
-const API = "";
-const COURSE_ID = "middle/grade7-up/english";
+import { DEFAULT_COURSE_ID as COURSE_ID } from "../lib/config";
 
 export function PlanPage() {
   const [plan, setPlan] = useState<DailyPlan | null>(null);

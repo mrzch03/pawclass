@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { authFetch, getUser, clearAuth } from "../lib/auth";
 
-const API = "";
 
 interface StudentOverview {
   studentId: string;

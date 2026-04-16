@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../lib/auth";
 import type { ConceptSummary, ConceptMastery } from "../types/learning";
 
-const API = "";
-const COURSE_ID = "middle/grade7-up/english";
+import { DEFAULT_COURSE_ID as COURSE_ID } from "../lib/config";
 
 interface SyllabusUnit {
   key: string;

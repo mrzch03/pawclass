@@ -273,11 +273,8 @@ export function createServer(db: DB): Hono {
     return c.html(frontendHtml);
   });
 
-  // Web UI routes (legacy mistakes management pages)
-  app.get("/", (c) => c.html(getIndexHtml()));
-  app.get("/mistakes", (c) => c.html(getIndexHtml()));
-  app.get("/mistakes/dashboard", (c) => c.html(getDashboardHtml()));
-  app.get("/review", (c) => c.html(getReviewHtml()));
+  // Root redirect to dashboard
+  app.get("/", (c) => c.redirect("/dashboard"));
 
   return app;
 }
@@ -293,11 +290,10 @@ export function startServer(db: DB, port?: number) {
   return server;
 }
 
-// ---------------------------------------------------------------------------
-// Embedded HTML pages
-// ---------------------------------------------------------------------------
+// Legacy embedded HTML pages removed — all UI now served from React frontend (frontend/dist/)
+// Old routes (/mistakes, /review, /dashboard) redirected to React pages
 
-function getIndexHtml(): string {
+function _legacyRemoved(): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
