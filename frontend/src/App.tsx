@@ -6,7 +6,9 @@ import { PlanPage } from "./pages/PlanPage";
 import { LoginPage } from "./pages/LoginPage";
 import { TeacherDashboard } from "./pages/TeacherDashboard";
 import { StudentDetail } from "./pages/StudentDetail";
+import { LandingPage } from "./pages/LandingPage";
 import { isLoggedIn } from "./lib/auth";
+import { useClerkAuth } from "./hooks/useClerkAuth";
 
 declare global {
   interface Window {
@@ -15,77 +17,99 @@ declare global {
   }
 }
 
+const HAS_CLERK = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
 export default function App() {
+  return HAS_CLERK ? <ClerkApp /> : <LocalApp />;
+}
+
+/** Clerk-authenticated app (production) */
+function ClerkApp() {
+  const { isSignedIn, isLoaded } = useClerkAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Course/session playback is always public
+  const path = window.location.pathname;
+  if (path.startsWith("/course/") || path.startsWith("/session/")) {
+    return <PlaybackRoute />;
+  }
+
+  if (!isSignedIn) {
+    return <LandingPage />;
+  }
+
+  return <Router />;
+}
+
+/** Local dev app (no Clerk) */
+function LocalApp() {
   const path = window.location.pathname;
 
-  // All app routes require login
-  const appRoutes = ["/dashboard", "/learn", "/concepts", "/plan", "/teacher"];
-  const isPractice = path.match(/\/practice\/(.+)/);
-  const isAppRoute = appRoutes.some((r) => path === r || path.startsWith(r + "/")) || isPractice;
+  if (path.startsWith("/course/") || path.startsWith("/session/")) {
+    return <PlaybackRoute />;
+  }
+  if (path === "/dev-login") return <LoginPage />;
 
-  if (isAppRoute && !isLoggedIn()) {
+  const protectedRoutes = ["/dashboard", "/learn", "/concepts", "/plan", "/teacher", "/practice"];
+  if (protectedRoutes.some(r => path === r || path.startsWith(r + "/")) && !isLoggedIn()) {
     return <LoginPage />;
   }
 
-  // Teacher routes — check role
-  if (path === "/teacher") {
-    const role = localStorage.getItem("pawclass_role");
-    if (role !== "teacher") {
-      // Wrong role, clear and re-login
-      localStorage.removeItem("pawclass_token");
-      localStorage.removeItem("pawclass_user");
-      localStorage.removeItem("pawclass_role");
-      return <LoginPage />;
-    }
-    return <TeacherDashboard />;
+  return <Router />;
+}
+
+/** Main router — all paths after auth check */
+function Router() {
+  const path = window.location.pathname;
+
+  if (path === "/") {
+    window.location.href = "/dashboard";
+    return null;
   }
+
+  // Teacher
+  if (path === "/teacher") return <TeacherDashboard />;
   const studentMatch = path.match(/\/teacher\/student\/(.+)/);
-  if (studentMatch) {
-    return <StudentDetail studentId={studentMatch[1]} />;
-  }
+  if (studentMatch) return <StudentDetail studentId={studentMatch[1]} />;
 
-  // Student routes
-  if (path === "/dashboard" || path === "/learn") {
-    return <DashboardPage />;
-  }
-  if (path === "/concepts" || path.startsWith("/concepts/")) {
-    return <ConceptsPage />;
-  }
-  if (path === "/plan") {
-    return <PlanPage />;
-  }
-  if (isPractice) {
-    return <PracticePage sessionId={isPractice[1]} />;
-  }
+  // Student
+  if (path === "/dashboard" || path === "/learn") return <DashboardPage />;
+  if (path === "/concepts" || path.startsWith("/concepts/")) return <ConceptsPage />;
+  if (path === "/plan") return <PlanPage />;
 
-  // Existing course/session playback
+  const practiceMatch = path.match(/\/practice\/(.+)/);
+  if (practiceMatch) return <PracticePage sessionId={practiceMatch[1]} />;
+
+  // Playback
+  if (path.startsWith("/course/") || path.startsWith("/session/")) return <PlaybackRoute />;
+
+  // Dev login
+  if (path === "/dev-login") return <LoginPage />;
+
+  // Fallback
+  window.location.href = "/dashboard";
+  return null;
+}
+
+/** Course/session playback (always public) */
+function PlaybackRoute() {
+  const path = window.location.pathname;
   const sessionId =
     window.__STAGE_SESSION_ID__ ||
     path.match(/\/(?:session|course)\/(.+)/)?.[1] ||
     null;
 
-  const mode: "session" | "course" =
-    window.__STAGE_MODE__ ||
-    (path.startsWith("/course/") ? "course" : "session");
+  if (!sessionId) return null;
 
-  if (!sessionId) {
-    return (
-      <div className="stage-shell flex h-screen items-center justify-center px-6">
-        <div className="stage-panel max-w-md rounded-[2rem] px-8 py-10 text-center">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700">PawClass</p>
-          <h1 className="font-display text-3xl text-slate-900">学习系统</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            通过课件或练习路由打开页面。
-          </p>
-          <div className="mt-6 flex gap-3 justify-center">
-            <a href="/dashboard" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700">
-              进入学习中心
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const mode: "session" | "course" =
+    window.__STAGE_MODE__ || (path.startsWith("/course/") ? "course" : "session");
 
   return (
     <div className="h-screen w-screen overflow-hidden">

@@ -1,17 +1,23 @@
 import { createMiddleware } from "hono/factory";
-import { jwtVerify, type JWTPayload } from "jose";
+import { jwtVerify, createRemoteJWKSet, type JWTPayload } from "jose";
 import type { AuthVariables, Role } from "./types.js";
 
 const JWT_SECRET = process.env.MISTAKES_JWT_SECRET || "";
-const LOGTO_ISSUER = process.env.LOGTO_ISSUER || "";
+const CLERK_ISSUER = process.env.CLERK_ISSUER || "";  // e.g. "https://innocent-raccoon-97.clerk.accounts.dev"
+
+// Clerk JWKS endpoint (cached by jose)
+let clerkJWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
+function getClerkJWKS() {
+  if (!clerkJWKS && CLERK_ISSUER) {
+    clerkJWKS = createRemoteJWKSet(new URL(`${CLERK_ISSUER}/.well-known/jwks.json`));
+  }
+  return clerkJWKS;
+}
 
 /**
- * Auth middleware — extracts user identity and role from JWT.
- *
- * Supports:
- * 1. Logto JWT (browser): sub as userId, role from claim
- * 2. Delegation JWT (CLI/Agent): sub as userId, role/studentId from claims
- * 3. Local dev JWT: sub as userId, role from claim
+ * Auth middleware — supports multiple JWT sources:
+ * 1. Clerk JWT (browser, RS256): verified via JWKS
+ * 2. Local/Delegation JWT (HS256): verified via shared secret
  *
  * Sets: c.var.userId, c.var.role, c.var.students, c.var.studentId
  */
@@ -24,24 +30,26 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
 
     const token = authHeader.slice(7);
 
-    if (!JWT_SECRET) {
-      return c.json({ error: "Server misconfigured: MISTAKES_JWT_SECRET not set" }, 500);
-    }
-
     try {
-      const secret = new TextEncoder().encode(JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret);
+      let payload: JWTPayload;
+
+      // Try Clerk JWKS first (if configured and token looks like Clerk JWT)
+      const jwks = getClerkJWKS();
+      if (jwks && isLikelyClerkToken(token)) {
+        try {
+          const result = await jwtVerify(token, jwks, { issuer: CLERK_ISSUER });
+          payload = result.payload;
+        } catch {
+          // Fall through to local secret
+          payload = await verifyLocalToken(token);
+        }
+      } else {
+        payload = await verifyLocalToken(token);
+      }
 
       const userId = extractUserId(payload);
       if (!userId) {
         return c.json({ error: "Unauthorized: token missing sub claim" }, 401);
-      }
-
-      // If Logto issuer is configured, validate it for non-delegation tokens
-      if (LOGTO_ISSUER && !isDelegationToken(payload)) {
-        if (payload.iss !== LOGTO_ISSUER) {
-          return c.json({ error: "Unauthorized: invalid issuer" }, 401);
-        }
       }
 
       c.set("userId", userId);
@@ -56,6 +64,25 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(
     }
   }
 );
+
+async function verifyLocalToken(token: string): Promise<JWTPayload> {
+  if (!JWT_SECRET) {
+    throw new Error("Server misconfigured: MISTAKES_JWT_SECRET not set");
+  }
+  const secret = new TextEncoder().encode(JWT_SECRET);
+  const { payload } = await jwtVerify(token, secret);
+  return payload;
+}
+
+/** Clerk tokens have 3 parts and the header contains "kid" */
+function isLikelyClerkToken(token: string): boolean {
+  try {
+    const header = JSON.parse(atob(token.split(".")[0]));
+    return !!header.kid;
+  } catch {
+    return false;
+  }
+}
 
 function extractUserId(payload: JWTPayload): string | null {
   if (typeof payload.sub === "string" && payload.sub.length > 0) {
