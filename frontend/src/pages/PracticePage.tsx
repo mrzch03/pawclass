@@ -57,6 +57,10 @@ export function PracticePage({ sessionId }: PracticePageProps) {
         });
 
       store.startSession(sessionId, matched);
+      if (matched.length === 0) {
+        // All exercises already answered — show completion
+        store.complete();
+      }
       setLoading(false);
     } catch (e: any) {
       setError(e.message);
@@ -91,7 +95,7 @@ export function PracticePage({ sessionId }: PracticePageProps) {
   }
 
   const current = store.exercises[store.currentIndex];
-  if (!current) return null;
+  if (!current) return <CompletionScreen />;
 
   const result = store.results.get(current.id);
 
