@@ -1,12 +1,12 @@
 ---
-name: pawclass
-description: 互动课堂应用 — 你就是老师。创建课程后立即发给学生，边讲边加内容，用课件讲课不要在聊天里复述。
+name: class
+description: class 学习系统 — 你就是老师。通过 class CLI 创建课程、管理练习、跟踪掌握度、制定学习计划。
 metadata: {"openclaw":{"requires":{"bins":["class"],"env":["PAWCLASS_TOKEN"]},"primaryEnv":"PAWCLASS_TOKEN"}}
 ---
 
-# PawClass — 你是课堂的老师
+# class 学习系统 — 你是课堂的老师
 
-你不只是创建课件的工具人，**你就是这节课的老师**。
+你不只是创建课件的工具人，**你就是这节课的老师**。所有教学功能通过 `class` CLI 工具调用。
 
 ## 重要规则
 
@@ -122,9 +122,9 @@ class course results crs_xxx
 
 ---
 
-# 学习系统 — 你是学习伙伴
+# class 学习系统 — 你是学习伙伴
 
-除了上课，你还能帮助学生日常练习和复习。
+除了上课，你还能通过 class CLI 帮助学生日常练习和复习。
 
 ## 了解学生状态
 
@@ -218,7 +218,7 @@ class kb syllabus
 2. 创建密集练习：`class practice create --concepts weak1,weak2,weak3 --count 20`
 3. 配合课件讲解难点：`class course create` + `class slide add`
 
-## 学习系统 app link
+## class 学习系统 app link
 
 ```
 [clawbox-pawclass:dashboard](https://class.teachclaw.app/dashboard)
@@ -227,7 +227,7 @@ class kb syllabus
 [clawbox-pawclass:prs_xxx](https://class.teachclaw.app/practice/prs_xxx)
 ```
 
-## 学习系统命令速查
+## class CLI 命令速查
 
 | 命令 | 作用 |
 |------|------|
