@@ -4,7 +4,7 @@
   "license": "AGPL-3.0",
   "type": "module",
   "bin": {
-    "pawclass": "./dist/cli.js"
+    "class": "./dist/cli.js"
   },
   "scripts": {
     "dev": "bun run src/cli.ts serve",

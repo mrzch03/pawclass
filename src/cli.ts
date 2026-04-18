@@ -6,20 +6,20 @@
  * 原子命令逐步构建课程，支持渐进式加载。
  *
  * 用法:
- *   pawclass course <command>     课程管理
- *   pawclass slide add <id>       添加幻灯片
- *   pawclass code add <id>        添加代码块
- *   pawclass quiz add <id>        添加测验
- *   pawclass interactive add <id> 添加互动
- *   pawclass narration add <id>   添加旁白
- *   pawclass whiteboard add <id>  添加白板元素
- *   pawclass mistake <command>    错题管理
- *   pawclass stats                统计数据
- *   pawclass serve                启动 HTTP 服务
- *   pawclass migrate              数据库迁移
+ *   class course <command>     课程管理
+ *   class slide add <id>       添加幻灯片
+ *   class code add <id>        添加代码块
+ *   class quiz add <id>        添加测验
+ *   class interactive add <id> 添加互动
+ *   class narration add <id>   添加旁白
+ *   class whiteboard add <id>  添加白板元素
+ *   class mistake <command>    错题管理
+ *   class stats                统计数据
+ *   class serve                启动 HTTP 服务
+ *   class migrate              数据库迁移
  */
 
-const PAWCLASS_BASE_URL = process.env.PAWCLASS_BASE_URL || "https://pawclass.teachclaw.app";
+const PAWCLASS_BASE_URL = process.env.PAWCLASS_BASE_URL || "https://class.teachclaw.app";
 const TOKEN = process.env.PAWCLASS_TOKEN || "";
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ function out(data: unknown): void {
 
 /** stderr: human-readable status */
 function info(msg: string): void {
-  process.stderr.write(`[pawclass] ${msg}\n`);
+  process.stderr.write(`[class] ${msg}\n`);
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ async function handleCourse(action: string, rest: string[]) {
   switch (action) {
     case "create": {
       const title = flags.title;
-      if (!title) { console.error("用法: pawclass course create --title <标题>"); process.exit(1); }
+      if (!title) { console.error("用法: class course create --title <标题>"); process.exit(1); }
       const data = await api("POST", "/api/course", { title });
       info("课程已创建");
       out(data);
@@ -99,13 +99,13 @@ async function handleCourse(action: string, rest: string[]) {
     }
     case "status": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course status <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course status <id>"); process.exit(1); }
       out(await api("GET", `/api/course/${id}`));
       break;
     }
     case "finalize": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course finalize <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course finalize <id>"); process.exit(1); }
       const data = await api("POST", `/api/course/${id}/finalize`);
       info("课程已定稿");
       out(data);
@@ -113,7 +113,7 @@ async function handleCourse(action: string, rest: string[]) {
     }
     case "play": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course play <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course play <id>"); process.exit(1); }
       // Auto-finalize if still in draft
       const courseInfo = await api("GET", `/api/course/${id}`) as any;
       if (courseInfo.status === "draft") {
@@ -128,7 +128,7 @@ async function handleCourse(action: string, rest: string[]) {
     }
     case "pause": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course pause <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course pause <id>"); process.exit(1); }
       const data = await api("POST", `/api/course/${id}/pause`);
       info("已暂停");
       out(data);
@@ -136,7 +136,7 @@ async function handleCourse(action: string, rest: string[]) {
     }
     case "resume": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course resume <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course resume <id>"); process.exit(1); }
       const data = await api("POST", `/api/course/${id}/resume`);
       info("已继续");
       out(data);
@@ -144,7 +144,7 @@ async function handleCourse(action: string, rest: string[]) {
     }
     case "stop": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course stop <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course stop <id>"); process.exit(1); }
       const data = await api("POST", `/api/course/${id}/stop`);
       info("已结束");
       out(data);
@@ -152,7 +152,7 @@ async function handleCourse(action: string, rest: string[]) {
     }
     case "results": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass course results <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class course results <id>"); process.exit(1); }
       out(await api("GET", `/api/course/${id}/results`));
       break;
     }
@@ -167,11 +167,11 @@ async function handleCourse(action: string, rest: string[]) {
 // ---------------------------------------------------------------------------
 
 async function handleSlide(action: string, rest: string[]) {
-  if (action !== "add") { console.error("用法: pawclass slide add <courseId> --title <标题> --content <markdown>"); process.exit(1); }
+  if (action !== "add") { console.error("用法: class slide add <courseId> --title <标题> --content <markdown>"); process.exit(1); }
   const { flags, positional } = parseArgs(rest);
   const courseId = positional[0];
   if (!courseId || !flags.title || !flags.content) {
-    console.error("用法: pawclass slide add <courseId> --title <标题> --content <markdown>");
+    console.error("用法: class slide add <courseId> --title <标题> --content <markdown>");
     process.exit(1);
   }
   const data = await api("POST", `/api/course/${courseId}/slide`, { title: flags.title, content: flags.content });
@@ -180,11 +180,11 @@ async function handleSlide(action: string, rest: string[]) {
 }
 
 async function handleCode(action: string, rest: string[]) {
-  if (action !== "add") { console.error("用法: pawclass code add <courseId> --language <lang> --content <code>"); process.exit(1); }
+  if (action !== "add") { console.error("用法: class code add <courseId> --language <lang> --content <code>"); process.exit(1); }
   const { flags, positional } = parseArgs(rest);
   const courseId = positional[0];
   if (!courseId || !flags.language || !flags.content) {
-    console.error("用法: pawclass code add <courseId> --language <lang> --content <code>");
+    console.error("用法: class code add <courseId> --language <lang> --content <code>");
     process.exit(1);
   }
   const data = await api("POST", `/api/course/${courseId}/code`, {
@@ -197,11 +197,11 @@ async function handleCode(action: string, rest: string[]) {
 }
 
 async function handleQuiz(action: string, rest: string[]) {
-  if (action !== "add") { console.error("用法: pawclass quiz add <courseId> --question <问题> --options <A,B,C> --answer <index>"); process.exit(1); }
+  if (action !== "add") { console.error("用法: class quiz add <courseId> --question <问题> --options <A,B,C> --answer <index>"); process.exit(1); }
   const { flags, positional } = parseArgs(rest);
   const courseId = positional[0];
   if (!courseId || !flags.question || !flags.options || flags.answer == null) {
-    console.error("用法: pawclass quiz add <courseId> --question <问题> --options <A,B,C> --answer <index>");
+    console.error("用法: class quiz add <courseId> --question <问题> --options <A,B,C> --answer <index>");
     process.exit(1);
   }
   const options = flags.options.split(",").map((s) => s.trim());
@@ -213,11 +213,11 @@ async function handleQuiz(action: string, rest: string[]) {
 }
 
 async function handleInteractive(action: string, rest: string[]) {
-  if (action !== "add") { console.error("用法: pawclass interactive add <courseId> --type <type> [--language <lang>]"); process.exit(1); }
+  if (action !== "add") { console.error("用法: class interactive add <courseId> --type <type> [--language <lang>]"); process.exit(1); }
   const { flags, positional } = parseArgs(rest);
   const courseId = positional[0];
   if (!courseId || !flags.type) {
-    console.error("用法: pawclass interactive add <courseId> --type <type> [--language <lang>]");
+    console.error("用法: class interactive add <courseId> --type <type> [--language <lang>]");
     process.exit(1);
   }
   const data = await api("POST", `/api/course/${courseId}/interactive`, { type: flags.type, language: flags.language });
@@ -226,11 +226,11 @@ async function handleInteractive(action: string, rest: string[]) {
 }
 
 async function handleNarration(action: string, rest: string[]) {
-  if (action !== "add") { console.error("用法: pawclass narration add <courseId> --text <旁白文字>"); process.exit(1); }
+  if (action !== "add") { console.error("用法: class narration add <courseId> --text <旁白文字>"); process.exit(1); }
   const { flags, positional } = parseArgs(rest);
   const courseId = positional[0];
   if (!courseId || !flags.text) {
-    console.error("用法: pawclass narration add <courseId> --text <旁白文字>");
+    console.error("用法: class narration add <courseId> --text <旁白文字>");
     process.exit(1);
   }
   const data = await api("POST", `/api/course/${courseId}/narration`, { text: flags.text });
@@ -239,11 +239,11 @@ async function handleNarration(action: string, rest: string[]) {
 }
 
 async function handleWhiteboard(action: string, rest: string[]) {
-  if (action !== "add") { console.error("用法: pawclass whiteboard add <courseId> --type <text|shape|latex|line> --content <内容> --x <x> --y <y>"); process.exit(1); }
+  if (action !== "add") { console.error("用法: class whiteboard add <courseId> --type <text|shape|latex|line> --content <内容> --x <x> --y <y>"); process.exit(1); }
   const { flags, positional } = parseArgs(rest);
   const courseId = positional[0];
   if (!courseId || !flags.type || flags.x == null || flags.y == null) {
-    console.error("用法: pawclass whiteboard add <courseId> --type <text|shape|latex|line> --x <x> --y <y> [--content <内容>] [--width <w>] [--height <h>] [--color <color>]");
+    console.error("用法: class whiteboard add <courseId> --type <text|shape|latex|line> --x <x> --y <y> [--content <内容>] [--width <w>] [--height <h>] [--color <color>]");
     process.exit(1);
   }
 
@@ -274,7 +274,7 @@ async function handleMistake(action: string, rest: string[]) {
   switch (action) {
     case "add": {
       if (!flags.subject || !flags.problem) {
-        console.error("用法: pawclass mistake add --subject <科目> --problem <题目> [--answer <正确答案>] [--wrong <错误答案>] [--topic <知识点>]");
+        console.error("用法: class mistake add --subject <科目> --problem <题目> [--answer <正确答案>] [--wrong <错误答案>] [--topic <知识点>]");
         process.exit(1);
       }
       const body: Record<string, unknown> = {
@@ -301,7 +301,7 @@ async function handleMistake(action: string, rest: string[]) {
     }
     case "master": {
       const id = positional[0];
-      if (!id) { console.error("用法: pawclass mistake master <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class mistake master <id>"); process.exit(1); }
       const data = await api("POST", `/api/mistake/${id}/master`);
       info("已标记掌握");
       out(data);
@@ -318,35 +318,35 @@ async function handleMistake(action: string, rest: string[]) {
 // ---------------------------------------------------------------------------
 
 function usage(): void {
-  console.log(`pawclass — Agent 内容创作工具
+  console.log(`class — Agent 内容创作工具
 
 课程管理:
-  pawclass course create --title <标题>                                   创建课程
-  pawclass course finalize <id>                                          定稿
-  pawclass course status <id>                                            查询状态
-  pawclass course play|pause|resume|stop <id>                            播放控制
-  pawclass course results <id>                                           测验结果
+  class course create --title <标题>                                   创建课程
+  class course finalize <id>                                          定稿
+  class course status <id>                                            查询状态
+  class course play|pause|resume|stop <id>                            播放控制
+  class course results <id>                                           测验结果
 
 内容添加:
-  pawclass slide add <id> --title <标题> --content <markdown>            幻灯片
-  pawclass code add <id> --language <lang> --content <代码> [--title <t>] 代码块
-  pawclass quiz add <id> --question <问题> --options <A,B,C> --answer <n> 测验
-  pawclass interactive add <id> --type <type> [--language <lang>]        互动场景
-  pawclass narration add <id> --text <旁白文字>                           旁白
-  pawclass whiteboard add <id> --type <text|shape|latex|line> --x --y    白板元素
+  class slide add <id> --title <标题> --content <markdown>            幻灯片
+  class code add <id> --language <lang> --content <代码> [--title <t>] 代码块
+  class quiz add <id> --question <问题> --options <A,B,C> --answer <n> 测验
+  class interactive add <id> --type <type> [--language <lang>]        互动场景
+  class narration add <id> --text <旁白文字>                           旁白
+  class whiteboard add <id> --type <text|shape|latex|line> --x --y    白板元素
 
 错题管理:
-  pawclass mistake add --subject <科目> --problem <题目> [--answer <答案>] 添加错题
-  pawclass mistake list [--subject <科目>] [--topic <知识点>]             列出错题
-  pawclass mistake master <id>                                           标记掌握
-  pawclass stats                                                         统计数据
+  class mistake add --subject <科目> --problem <题目> [--answer <答案>] 添加错题
+  class mistake list [--subject <科目>] [--topic <知识点>]             列出错题
+  class mistake master <id>                                           标记掌握
+  class stats                                                         统计数据
 
 服务管理:
-  pawclass serve                                                         启动服务
-  pawclass migrate                                                       数据库迁移
+  class serve                                                         启动服务
+  class migrate                                                       数据库迁移
 
 环境变量:
-  PAWCLASS_BASE_URL     服务地址 (默认 https://pawclass.teachclaw.app)
+  PAWCLASS_BASE_URL     服务地址 (默认 https://class.teachclaw.app)
   PAWCLASS_TOKEN        OAuth access token → Authorization: Bearer header`);
 }
 
@@ -378,7 +378,7 @@ async function handleLearner(action: string, rest: string[]) {
       out(await api("GET", `/api/learner/stats?course=${course}`));
       break;
     default:
-      console.error("用法: pawclass learner <profile|mastery|due|stats>");
+      console.error("用法: class learner <profile|mastery|due|stats>");
       process.exit(1);
   }
 }
@@ -397,18 +397,18 @@ async function handlePractice(action: string, rest: string[]) {
     }
     case "status": {
       const id = rest.find(a => !a.startsWith("--")) || flags.id;
-      if (!id) { console.error("用法: pawclass practice status <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class practice status <id>"); process.exit(1); }
       out(await api("GET", `/api/practice/${id}`));
       break;
     }
     case "results": {
       const id = rest.find(a => !a.startsWith("--")) || flags.id;
-      if (!id) { console.error("用法: pawclass practice results <id>"); process.exit(1); }
+      if (!id) { console.error("用法: class practice results <id>"); process.exit(1); }
       out(await api("GET", `/api/practice/${id}/results`));
       break;
     }
     default:
-      console.error("用法: pawclass practice <create|status|results>");
+      console.error("用法: class practice <create|status|results>");
       process.exit(1);
   }
 }
@@ -429,7 +429,7 @@ async function handlePlan(action: string, rest: string[]) {
       break;
     }
     default:
-      console.error("用法: pawclass plan <today|create>");
+      console.error("用法: class plan <today|create>");
       process.exit(1);
   }
 }
@@ -444,7 +444,7 @@ async function handleKb(action: string, rest: string[]) {
       break;
     case "exercises": {
       const concept = flags.concept;
-      if (!concept) { console.error("用法: pawclass kb exercises --concept <id>"); process.exit(1); }
+      if (!concept) { console.error("用法: class kb exercises --concept <id>"); process.exit(1); }
       const limit = flags.limit || "10";
       out(await api("GET", `/api/kb/${course}/exercises/${concept}?limit=${limit}`));
       break;
@@ -453,7 +453,7 @@ async function handleKb(action: string, rest: string[]) {
       out(await api("GET", `/api/kb/${course}/syllabus`));
       break;
     default:
-      console.error("用法: pawclass kb <concepts|exercises|syllabus>");
+      console.error("用法: class kb <concepts|exercises|syllabus>");
       process.exit(1);
   }
 }
@@ -470,62 +470,62 @@ async function main() {
 
   switch (command) {
     case "course":
-      if (!subCommand) { console.error("用法: pawclass course <create|finalize|status|play|pause|resume|stop|results>"); process.exit(1); }
+      if (!subCommand) { console.error("用法: class course <create|finalize|status|play|pause|resume|stop|results>"); process.exit(1); }
       await handleCourse(subCommand, rest);
       break;
 
     case "slide":
-      if (!subCommand) { console.error("用法: pawclass slide add <courseId> ..."); process.exit(1); }
+      if (!subCommand) { console.error("用法: class slide add <courseId> ..."); process.exit(1); }
       await handleSlide(subCommand, rest);
       break;
 
     case "code":
-      if (!subCommand) { console.error("用法: pawclass code add <courseId> ..."); process.exit(1); }
+      if (!subCommand) { console.error("用法: class code add <courseId> ..."); process.exit(1); }
       await handleCode(subCommand, rest);
       break;
 
     case "quiz":
-      if (!subCommand) { console.error("用法: pawclass quiz add <courseId> ..."); process.exit(1); }
+      if (!subCommand) { console.error("用法: class quiz add <courseId> ..."); process.exit(1); }
       await handleQuiz(subCommand, rest);
       break;
 
     case "interactive":
-      if (!subCommand) { console.error("用法: pawclass interactive add <courseId> ..."); process.exit(1); }
+      if (!subCommand) { console.error("用法: class interactive add <courseId> ..."); process.exit(1); }
       await handleInteractive(subCommand, rest);
       break;
 
     case "narration":
-      if (!subCommand) { console.error("用法: pawclass narration add <courseId> ..."); process.exit(1); }
+      if (!subCommand) { console.error("用法: class narration add <courseId> ..."); process.exit(1); }
       await handleNarration(subCommand, rest);
       break;
 
     case "whiteboard":
-      if (!subCommand) { console.error("用法: pawclass whiteboard add <courseId> ..."); process.exit(1); }
+      if (!subCommand) { console.error("用法: class whiteboard add <courseId> ..."); process.exit(1); }
       await handleWhiteboard(subCommand, rest);
       break;
 
     case "mistake":
-      if (!subCommand) { console.error("用法: pawclass mistake <add|list|master>"); process.exit(1); }
+      if (!subCommand) { console.error("用法: class mistake <add|list|master>"); process.exit(1); }
       await handleMistake(subCommand, rest);
       break;
 
     case "learner":
-      if (!subCommand) { console.error("用法: pawclass learner <profile|mastery|due|stats>"); process.exit(1); }
+      if (!subCommand) { console.error("用法: class learner <profile|mastery|due|stats>"); process.exit(1); }
       await handleLearner(subCommand, rest);
       break;
 
     case "practice":
-      if (!subCommand) { console.error("用法: pawclass practice <create|status|results>"); process.exit(1); }
+      if (!subCommand) { console.error("用法: class practice <create|status|results>"); process.exit(1); }
       await handlePractice(subCommand, rest);
       break;
 
     case "plan":
-      if (!subCommand) { console.error("用法: pawclass plan <today|create>"); process.exit(1); }
+      if (!subCommand) { console.error("用法: class plan <today|create>"); process.exit(1); }
       await handlePlan(subCommand, rest);
       break;
 
     case "kb":
-      if (!subCommand) { console.error("用法: pawclass kb <concepts|exercises|syllabus>"); process.exit(1); }
+      if (!subCommand) { console.error("用法: class kb <concepts|exercises|syllabus>"); process.exit(1); }
       await handleKb(subCommand, rest);
       break;
 

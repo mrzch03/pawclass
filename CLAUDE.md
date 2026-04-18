@@ -161,7 +161,7 @@ exercise.id 是稳定标识符，被 exercise_attempts 表引用。data-refinery
 
 daily_plans 的 `source` 字段区分：
 - `"auto"` — 学生打开 dashboard 时自动生成
-- `"agent"` — Agent 通过 `pawclass plan create` 主动制定
+- `"agent"` — Agent 通过 `class plan create` 主动制定
 
 ### 课件和练习是两个独立系统
 
@@ -242,16 +242,16 @@ Agent 通过 CLI 调用，完整命令定义在 `src/cli.ts`。
 
 | 命令 | 说明 |
 |------|------|
-| `pawclass course create/finalize/play/stop` | 课程生命周期 |
-| `pawclass slide/quiz/narration add` | 添加课件内容 |
-| `pawclass learner profile` | 学生画像 |
-| `pawclass learner mastery` | 知识点掌握度 |
-| `pawclass learner due` | 待复习知识点 |
-| `pawclass practice create` | 创建练习会话 |
-| `pawclass practice results` | 练习结果 |
-| `pawclass plan today` | 今日计划 |
-| `pawclass plan create` | Agent 制定计划 |
-| `pawclass kb concepts/exercises/syllabus` | 查询知识库 |
+| `class course create/finalize/play/stop` | 课程生命周期 |
+| `class slide/quiz/narration add` | 添加课件内容 |
+| `class learner profile` | 学生画像 |
+| `class learner mastery` | 知识点掌握度 |
+| `class learner due` | 待复习知识点 |
+| `class practice create` | 创建练习会话 |
+| `class practice results` | 练习结果 |
+| `class plan today` | 今日计划 |
+| `class plan create` | Agent 制定计划 |
+| `class kb concepts/exercises/syllabus` | 查询知识库 |
 
 ## 9. Data Refinery 子项目
 
